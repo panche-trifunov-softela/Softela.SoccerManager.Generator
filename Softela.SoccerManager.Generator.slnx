@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="Softela.SoccerManager.Generator/Softela.SoccerManager.Generator.csproj" />
+  <Project Path="Softela.SoccerManager.Generator.Application/Softela.SoccerManager.Generator.Application.csproj" />
+  <Project Path="Softela.SoccerManager.Generator.Infrastructure/Softela.SoccerManager.Generator.Infrastructure.csproj" />
 </Solution>
