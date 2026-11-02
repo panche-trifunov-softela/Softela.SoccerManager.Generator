@@ -1,3 +1,7 @@
-# Visual Studio's solution-level state. The project folder's own .gitignore
-# covers bin/, obj/ and local.settings.json.
+# Visual Studio's solution-level state.
 /.vs
+
+# Build output of every project in the solution. The Functions project's own
+# .gitignore also covers local.settings.json.
+[Bb]in/
+[Oo]bj/
