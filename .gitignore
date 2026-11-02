@@ -1,0 +1,3 @@
+# Visual Studio's solution-level state. The project folder's own .gitignore
+# covers bin/, obj/ and local.settings.json.
+/.vs
