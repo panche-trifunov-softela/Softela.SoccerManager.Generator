@@ -9,6 +9,8 @@
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <!-- SqlClient 7.0.2 pulls Pkcs 9.0.13 transitively, which has published security advisories; 9.0.21 and later are patched. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.22" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
   </ItemGroup>
