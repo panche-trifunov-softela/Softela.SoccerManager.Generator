@@ -16,14 +16,17 @@ internal static class SeasonCalendarInputValidator
     /// Thrown when:
     /// <list type="bullet">
     /// <item><description>there are no divisions;</description></item>
+    /// <item>
+    /// <description>there are more divisions than <see cref="CalendarTemplate.MaxDivisionsPerLeague"/>;</description>
+    /// </item>
     /// <item><description>the divisions do not all have the same number of clubs;</description></item>
     /// <item>
     /// <description>a division has fewer clubs than <see cref="CalendarTemplate.MinClubsPerDivision"/>;</description>
     /// </item>
-    /// <item><description>a division has an odd number of clubs;</description></item>
     /// <item>
-    /// <description>the league has more clubs than <see cref="CalendarTemplate.MaxClubsInLeague"/>;</description>
+    /// <description>a division has more clubs than <see cref="CalendarTemplate.MaxClubsPerDivision"/>;</description>
     /// </item>
+    /// <item><description>a division has an odd number of clubs;</description></item>
     /// <item><description>an existing kickoff is not in UTC.</description></item>
     /// </list>
     /// </exception>
@@ -34,8 +37,8 @@ internal static class SeasonCalendarInputValidator
     }
 
     /// <summary>
-    /// Checks that the league has divisions, that they all have the same number of clubs, and that the number is
-    /// allowed.
+    /// Checks that the league has an allowed number of divisions, that they all have the same number of clubs, and that
+    /// the number of clubs is allowed.
     /// </summary>
     /// <param name="divisionClubCounts">The number of clubs in each division.</param>
     /// <exception cref="ArgumentException">Thrown when a division rule is broken.</exception>
@@ -44,6 +47,14 @@ internal static class SeasonCalendarInputValidator
         if (divisionClubCounts.Count == 0)
         {
             throw new ArgumentException("A league needs at least one division.", nameof(divisionClubCounts));
+        }
+
+        if (divisionClubCounts.Count > CalendarTemplate.MaxDivisionsPerLeague)
+        {
+            throw new ArgumentException(
+                $"A league can have at most {CalendarTemplate.MaxDivisionsPerLeague} divisions, "
+                + $"but this one has {divisionClubCounts.Count}.",
+                nameof(divisionClubCounts));
         }
 
         int size = divisionClubCounts[0];
@@ -64,20 +75,17 @@ internal static class SeasonCalendarInputValidator
                 nameof(divisionClubCounts));
         }
 
+        if (size > CalendarTemplate.MaxClubsPerDivision)
+        {
+            throw new ArgumentException(
+                $"A division can have at most {CalendarTemplate.MaxClubsPerDivision} clubs, but these have {size}.",
+                nameof(divisionClubCounts));
+        }
+
         if (size % 2 != 0)
         {
             throw new ArgumentException(
                 $"A division needs an even number of clubs, but these have {size}.",
-                nameof(divisionClubCounts));
-        }
-
-        // A long, so that a huge number of divisions cannot wrap round to a small total.
-        long totalClubs = divisionClubCounts.Sum(count => (long)count);
-
-        if (totalClubs > CalendarTemplate.MaxClubsInLeague)
-        {
-            throw new ArgumentException(
-                $"A league can have at most {CalendarTemplate.MaxClubsInLeague} clubs, but this one has {totalClubs}.",
                 nameof(divisionClubCounts));
         }
     }

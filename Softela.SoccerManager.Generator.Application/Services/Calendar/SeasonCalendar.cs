@@ -16,7 +16,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 /// The dates of the continental cups, in UTC. Both continental cups are played on these same dates.
 /// </param>
 /// <param name="WorldCupQualifierMatchdays">
-/// The kickoffs of the World Cup qualifier matchdays, in UTC, earliest first; each international window has two.
+/// The kickoffs of the World Cup qualifier matchdays, in UTC, earliest first.
 /// </param>
 /// <param name="WorldCupFinalsMatchdays">
 /// The kickoffs of the World Cup finals matchdays, in UTC, earliest first; all of them are after the last club date.

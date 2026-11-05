@@ -10,23 +10,32 @@ public static class SeasonCalendarBuilder
     /// <list type="bullet">
     /// <item>
     /// <description>
-    /// The first league matchday is the earliest date that is after the start date and whose kickoff is at least 48
-    /// hours after every existing kickoff; exactly 48 hours is allowed. So the season starts after the latest
-    /// existing match, however far ahead that is.
+    /// The first match is on the earliest Thursday that is after the start date and whose kickoff is at least 24 hours
+    /// after every existing kickoff; exactly 24 hours is allowed. So the season starts after the latest existing match,
+    /// however far ahead that is.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// League rounds are on Thursdays and Sundays, domestic cup rounds on Tuesdays, continental dates on Mondays and
+    /// World Cup qualifier matchdays on Fridays. The continental final is the last club date, and the World Cup finals
+    /// matchdays are on consecutive days that start 7 days after it.
     /// </description>
     /// </item>
     /// <item>
     /// <description>
     /// The league has one date per round of a double round robin, and the domestic cup has one per round of a knockout
-    /// of all the league's clubs, so how many there are depends on the league's shape. How many continental and World
-    /// Cup dates there are does not.
+    /// of all the league's clubs, so how many there are depends on the league's shape. So do the continental dates: a
+    /// division of 18 clubs or more plays 32-club cups, with 17 dates including a play-off and a round of 16, and a
+    /// smaller division plays 16-club cups, with 11 dates and neither of those. How many World Cup dates there are does
+    /// not depend on it.
     /// </description>
     /// </item>
     /// <item>
-    /// <description>Every date's distance from the first matchday depends only on the league's shape.</description>
+    /// <description>Every date's distance from the first Thursday depends only on the league's shape.</description>
     /// </item>
     /// <item>
-    /// <description>Every kickoff is at 20:00 UTC.</description>
+    /// <description>Every kickoff is at 20:00 UTC, and every weekday is a UTC weekday.</description>
     /// </item>
     /// <item>
     /// <description>
@@ -36,9 +45,10 @@ public static class SeasonCalendarBuilder
     /// </item>
     /// </list>
     /// </summary>
-    /// <param name="startDate">The date the season is built from; the first matchday is after it.</param>
+    /// <param name="startDate">The date the season is built from; the first match is after it.</param>
     /// <param name="divisionClubCounts">
-    /// The number of clubs in each division; they must all be the same, even, and at least 10.
+    /// The number of clubs in each division. There can be at most 5 divisions, and the numbers must all be the same,
+    /// even, at least 10 and at most 20.
     /// </param>
     /// <param name="existingKickoffs">The kickoffs of the matches that already exist, in UTC and in any order.</param>
     /// <returns>The calendar of the season; its start date is <paramref name="startDate"/>.</returns>
@@ -48,10 +58,11 @@ public static class SeasonCalendarBuilder
     /// <exception cref="ArgumentException">
     /// Thrown when:
     /// <list type="bullet">
-    /// <item><description>there are no divisions;</description></item>
+    /// <item><description>there are no divisions, or more than 5;</description></item>
     /// <item><description>the divisions do not all have the same number of clubs;</description></item>
-    /// <item><description>a division has fewer than 10 clubs, or an odd number of clubs;</description></item>
-    /// <item><description>the league has more than 1024 clubs in all;</description></item>
+    /// <item>
+    /// <description>a division has fewer than 10 clubs, more than 20 clubs, or an odd number of clubs;</description>
+    /// </item>
     /// <item>
     /// <description>
     /// an existing kickoff is not in UTC. Values read from the database are already UTC, so that can only be a bug
@@ -73,30 +84,34 @@ public static class SeasonCalendarBuilder
         int clubsPerDivision = divisionClubCounts[0];
 
         SeasonLayout layout = SeasonLayoutBuilder.Build(clubsPerDivision, divisionClubCounts.Count);
-        DateOnly firstMatchday = FindFirstMatchday(startDate, existingKickoffs);
+        DateOnly firstThursday = FindFirstThursday(startDate, existingKickoffs);
 
-        List<DateTime> leagueMatchdays = layout.LeagueWeeks
-            .Select(week => MatchdayOf(firstMatchday, week))
+        List<DateTime> leagueMatchdays = Enumerable.Range(CalendarTemplate.FirstWeek, layout.LeagueWeekCount)
+            .SelectMany(week => new[]
+            {
+                KickoffOf(firstThursday, week, CalendarTemplate.ThursdayOffset),
+                KickoffOf(firstThursday, week, CalendarTemplate.SundayOffset),
+            })
             .ToList();
 
         List<DateTime> domesticCupRounds = layout.DomesticCupWeeks
-            .Select(week => MidweekOf(firstMatchday, week))
+            .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.TuesdayOffset))
             .ToList();
 
         List<DateTime> leaguePhase = layout.LeaguePhaseWeeks
-            .Select(week => MidweekOf(firstMatchday, week))
+            .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.MondayOffset))
             .ToList();
 
         ContinentalCupDates continentalCups = new(
             leaguePhase,
-            LegsOf(firstMatchday, layout.PlayOffWeeks),
-            LegsOf(firstMatchday, layout.RoundOf16Weeks),
-            LegsOf(firstMatchday, layout.QuarterFinalWeeks),
-            LegsOf(firstMatchday, layout.SemiFinalWeeks),
-            MidweekOf(firstMatchday, layout.ContinentalFinalWeek));
+            layout.PlayOffWeeks is { } playOffWeeks ? LegsOf(firstThursday, playOffWeeks) : null,
+            layout.RoundOf16Weeks is { } roundOf16Weeks ? LegsOf(firstThursday, roundOf16Weeks) : null,
+            LegsOf(firstThursday, layout.QuarterFinalWeeks),
+            LegsOf(firstThursday, layout.SemiFinalWeeks),
+            KickoffOf(firstThursday, layout.ContinentalFinalWeek, CalendarTemplate.MondayOffset));
 
-        List<DateTime> worldCupQualifierMatchdays = layout.WindowWeeks
-            .SelectMany(week => new[] { MatchdayOf(firstMatchday, week), MidweekOf(firstMatchday, week) })
+        List<DateTime> worldCupQualifierMatchdays = layout.QualifierWeeks
+            .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.FridayOffset))
             .ToList();
 
         // The continental final is the last club date, so the World Cup finals are counted from it.
@@ -119,27 +134,30 @@ public static class SeasonCalendarBuilder
     }
 
     /// <summary>
-    /// Finds the date of the first league matchday: the earliest date after the start date whose kickoff is at least
+    /// Finds the first Thursday of the season: the earliest Thursday after the start date whose kickoff is at least
     /// <see cref="CalendarTemplate.MinHoursBetweenKickoffs"/> hours after every existing kickoff.
     /// </summary>
-    /// <param name="startDate">The date the season is built from; the first matchday is after it.</param>
+    /// <param name="startDate">The date the season is built from; the first Thursday is after it.</param>
     /// <param name="existingKickoffs">The kickoffs of the matches that already exist, in UTC and in any order.</param>
-    /// <returns>The date of game week 1's day 0.</returns>
-    private static DateOnly FindFirstMatchday(DateOnly startDate, IReadOnlyList<DateTime> existingKickoffs)
+    /// <returns>The date of the Thursday that starts week 1.</returns>
+    private static DateOnly FindFirstThursday(DateOnly startDate, IReadOnlyList<DateTime> existingKickoffs)
     {
-        DateOnly firstMatchday = startDate.AddDays(1);
+        DateOnly earliestDate = startDate.AddDays(1);
 
         foreach (DateTime kickoff in existingKickoffs)
         {
             DateOnly earliest = EarliestMatchdayFor(kickoff);
 
-            if (earliest > firstMatchday)
+            if (earliest > earliestDate)
             {
-                firstMatchday = earliest;
+                earliestDate = earliest;
             }
         }
 
-        return firstMatchday;
+        int daysToThursday = ((int)DayOfWeek.Thursday - (int)earliestDate.DayOfWeek + CalendarTemplate.DaysPerWeek)
+            % CalendarTemplate.DaysPerWeek;
+
+        return earliestDate.AddDays(daysToThursday);
     }
 
     /// <summary>
@@ -159,28 +177,15 @@ public static class SeasonCalendarBuilder
     }
 
     /// <summary>
-    /// Gives the kickoff on day 0 of a game week: the league matchday, or the first qualifier matchday of an
-    /// international window.
+    /// Gives the kickoff on a day of a week.
     /// </summary>
-    /// <param name="firstMatchday">The date of game week 1's day 0.</param>
-    /// <param name="gameWeek">The 1-based game week.</param>
-    /// <returns>The kickoff on the game week's day 0, in UTC.</returns>
-    private static DateTime MatchdayOf(DateOnly firstMatchday, int gameWeek)
+    /// <param name="firstThursday">The date of the Thursday that starts week 1.</param>
+    /// <param name="week">The 1-based week.</param>
+    /// <param name="dayOffset">The number of days after the week's Thursday.</param>
+    /// <returns>The kickoff on that day, in UTC.</returns>
+    private static DateTime KickoffOf(DateOnly firstThursday, int week, int dayOffset)
     {
-        return KickoffAt(firstMatchday, (gameWeek - 1) * CalendarTemplate.DaysPerGameWeek);
-    }
-
-    /// <summary>
-    /// Gives the midweek slot of a game week.
-    /// </summary>
-    /// <param name="firstMatchday">The date of game week 1's day 0.</param>
-    /// <param name="gameWeek">The 1-based game week.</param>
-    /// <returns>The kickoff in the game week's midweek slot, in UTC.</returns>
-    private static DateTime MidweekOf(DateOnly firstMatchday, int gameWeek)
-    {
-        return KickoffAt(
-            firstMatchday,
-            (gameWeek - 1) * CalendarTemplate.DaysPerGameWeek + CalendarTemplate.MidweekDayOffset);
+        return KickoffAt(firstThursday, (week - CalendarTemplate.FirstWeek) * CalendarTemplate.DaysPerWeek + dayOffset);
     }
 
     /// <summary>
@@ -195,15 +200,15 @@ public static class SeasonCalendarBuilder
     }
 
     /// <summary>
-    /// Gives the kickoffs of the two legs of a tie, both in the midweek slot of their game weeks.
+    /// Gives the kickoffs of the two legs of a tie, both on the Monday of their weeks.
     /// </summary>
-    /// <param name="firstMatchday">The date of game week 1's day 0.</param>
-    /// <param name="weeks">The game weeks of the first leg and of the second leg.</param>
+    /// <param name="firstThursday">The date of the Thursday that starts week 1.</param>
+    /// <param name="weeks">The weeks of the first leg and of the second leg.</param>
     /// <returns>The kickoffs of the two legs, in UTC.</returns>
-    private static TwoLegDates LegsOf(DateOnly firstMatchday, (int FirstLeg, int SecondLeg) weeks)
+    private static TwoLegDates LegsOf(DateOnly firstThursday, (int FirstLeg, int SecondLeg) weeks)
     {
         return new TwoLegDates(
-            MidweekOf(firstMatchday, weeks.FirstLeg),
-            MidweekOf(firstMatchday, weeks.SecondLeg));
+            KickoffOf(firstThursday, weeks.FirstLeg, CalendarTemplate.MondayOffset),
+            KickoffOf(firstThursday, weeks.SecondLeg, CalendarTemplate.MondayOffset));
     }
 }
