@@ -3,7 +3,8 @@ using System.Numerics;
 namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
-/// Lays out the weeks of a season from the shape of its league.
+/// Lays out the weeks of a season from the shape of its league: the league and the domestic cup always, and the World
+/// Cup qualifiers and the continental cups when the divisions have enough clubs.
 /// </summary>
 internal static class SeasonLayoutBuilder
 {
@@ -20,14 +21,21 @@ internal static class SeasonLayoutBuilder
     /// </item>
     /// <item>
     /// <description>
-    /// The continental cups have one date a week, in consecutive weeks that end the season, so the continental final is
-    /// in the last week. A season has as many weeks as the longer of the league and the continental cups.
+    /// Divisions of fewer than 12 clubs have no continental cups, World Cup qualifiers or World Cup finals, so their
+    /// season is as long as the league.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// From 12 clubs, the continental cups have one date a week, in consecutive weeks that end the season, so the
+    /// continental final is in the last week. Such a season has as many weeks as the longer of the league and the
+    /// continental cups.
     /// </description>
     /// </item>
     /// <item>
     /// <description>
     /// The domestic cup rounds are spread from week 2 to the week before the last, and the World Cup qualifier
-    /// matchdays from week 3 to two weeks before the last.
+    /// matchdays, where there are any, from week 3 to two weeks before the last.
     /// </description>
     /// </item>
     /// <item>
@@ -37,9 +45,23 @@ internal static class SeasonLayoutBuilder
     /// </summary>
     /// <param name="clubsPerDivision">The number of clubs in each division; it must already be validated.</param>
     /// <param name="divisionCount">The number of divisions; it must already be validated.</param>
-    /// <returns>The weeks of the season's league, World Cup qualifiers, domestic cup and continental cups.</returns>
+    /// <returns>
+    /// The weeks of the season's league and domestic cup and, from 12 clubs per division, its World Cup qualifiers and
+    /// continental cups; the continental layout is null below that.
+    /// </returns>
     public static SeasonLayout Build(int clubsPerDivision, int divisionCount)
     {
+        if (!CalendarTemplate.HasInternationalCompetitions(clubsPerDivision))
+        {
+            int smallLeagueWeekCount = clubsPerDivision - 1;
+
+            return new SeasonLayout(
+                smallLeagueWeekCount,
+                [],
+                DomesticCupWeeksOf(clubsPerDivision, divisionCount, smallLeagueWeekCount),
+                null);
+        }
+
         bool isLargeFormat = CalendarTemplate.IsLargeContinentalFormat(clubsPerDivision);
 
         int leaguePhaseDateCount = isLargeFormat
@@ -58,15 +80,12 @@ internal static class SeasonLayoutBuilder
             lastWeek - CalendarTemplate.WeeksFromLastQualifierToLastWeek,
             CalendarTemplate.QualifierMatchdayCount);
 
-        List<int> domesticCupWeeks = SpreadWeeks(
-            CalendarTemplate.FirstDomesticCupWeek,
-            lastWeek - CalendarTemplate.WeeksFromDomesticCupFinalToLastWeek,
-            DomesticCupRoundCount(clubsPerDivision * divisionCount));
+        List<int> domesticCupWeeks = DomesticCupWeeksOf(clubsPerDivision, divisionCount, lastWeek);
 
         int firstContinentalWeek = lastWeek - continentalDateCount + CalendarTemplate.FirstWeek;
         List<int> continentalWeeks = Enumerable.Range(firstContinentalWeek, continentalDateCount).ToList();
 
-        // Both formats end with the same dates, so the positions are counted back from the final.
+        // Both continental formats end with the same dates, so the positions are counted back from the final.
         int finalIndex = continentalDateCount - 1;
         int semiFinalIndex = finalIndex - LegsPerTie;
         int quarterFinalIndex = semiFinalIndex - LegsPerTie;
@@ -77,12 +96,29 @@ internal static class SeasonLayoutBuilder
             leagueWeekCount,
             qualifierWeeks,
             domesticCupWeeks,
-            continentalWeeks.Take(leaguePhaseDateCount).ToList(),
-            isLargeFormat ? TieWeeksOf(continentalWeeks, playOffIndex) : null,
-            isLargeFormat ? TieWeeksOf(continentalWeeks, roundOf16Index) : null,
-            TieWeeksOf(continentalWeeks, quarterFinalIndex),
-            TieWeeksOf(continentalWeeks, semiFinalIndex),
-            continentalWeeks[finalIndex]);
+            new ContinentalLayout(
+                continentalWeeks.Take(leaguePhaseDateCount).ToList(),
+                isLargeFormat ? TieWeeksOf(continentalWeeks, playOffIndex) : null,
+                isLargeFormat ? TieWeeksOf(continentalWeeks, roundOf16Index) : null,
+                TieWeeksOf(continentalWeeks, quarterFinalIndex),
+                TieWeeksOf(continentalWeeks, semiFinalIndex),
+                continentalWeeks[finalIndex]));
+    }
+
+    /// <summary>
+    /// Spreads the rounds of the domestic cup over the weeks from the first cup week to the week before the last week
+    /// of the season.
+    /// </summary>
+    /// <param name="clubsPerDivision">The number of clubs in each division.</param>
+    /// <param name="divisionCount">The number of divisions.</param>
+    /// <param name="lastWeek">The last week of the season.</param>
+    /// <returns>The week of each domestic cup round, earliest first; the last is the final.</returns>
+    private static List<int> DomesticCupWeeksOf(int clubsPerDivision, int divisionCount, int lastWeek)
+    {
+        return SpreadWeeks(
+            CalendarTemplate.FirstDomesticCupWeek,
+            lastWeek - CalendarTemplate.WeeksFromDomesticCupFinalToLastWeek,
+            DomesticCupRoundCount(clubsPerDivision * divisionCount));
     }
 
     /// <summary>
@@ -106,7 +142,8 @@ internal static class SeasonLayoutBuilder
     /// <param name="lastWeek">The week of the last date.</param>
     /// <param name="count">
     /// The number of dates; it must be at least 2 and no more than the weeks in the range, which the template's limits
-    /// on clubs and divisions guarantee.
+    /// on clubs and divisions guarantee. At 10 clubs the domestic cup has at most 6 rounds for the 7 Tuesdays of weeks
+    /// 2 to 8.
     /// </param>
     /// <returns>The week of each date, earliest first.</returns>
     private static List<int> SpreadWeeks(int firstWeek, int lastWeek, int count)

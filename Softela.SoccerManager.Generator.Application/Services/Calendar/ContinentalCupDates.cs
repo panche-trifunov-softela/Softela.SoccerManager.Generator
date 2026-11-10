@@ -2,7 +2,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
 /// The dates of a continental cup, from its league phase to its final. Both continental cups of a season are played on
-/// these same dates.
+/// these same dates. They are built only for leagues of 12 clubs per division or more.
 /// </summary>
 /// <param name="LeaguePhase">The kickoffs of the league phase matchdays, in UTC, earliest first.</param>
 /// <param name="PlayOff">
