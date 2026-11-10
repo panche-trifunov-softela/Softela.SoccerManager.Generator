@@ -1,7 +1,8 @@
 namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
-/// Builds the dates of a season on the layout that the shape of its league needs.
+/// Builds the dates of a season on the layout that the shape of its league needs. Only a league of 12 clubs per
+/// division or more has continental cups and a World Cup.
 /// </summary>
 public static class SeasonCalendarBuilder
 {
@@ -17,9 +18,10 @@ public static class SeasonCalendarBuilder
     /// </item>
     /// <item>
     /// <description>
-    /// League rounds are on Thursdays and Sundays, domestic cup rounds on Tuesdays, continental dates on Mondays and
-    /// World Cup qualifier matchdays on Fridays. The continental final is the last club date, and the World Cup finals
-    /// matchdays are on consecutive days that start 7 days after it.
+    /// League rounds are on Thursdays and Sundays and domestic cup rounds on Tuesdays. From 12 clubs per division,
+    /// continental dates are on Mondays and World Cup qualifier matchdays on Fridays; the continental final is the last
+    /// club date, and the World Cup finals matchdays are on consecutive days that start 7 days after it. Below 12 clubs
+    /// there are no continental, qualifier or World Cup finals dates.
     /// </description>
     /// </item>
     /// <item>
@@ -27,8 +29,8 @@ public static class SeasonCalendarBuilder
     /// The league has one date per round of a double round robin, and the domestic cup has one per round of a knockout
     /// of all the league's clubs, so how many there are depends on the league's shape. So do the continental dates: a
     /// division of 18 clubs or more plays 32-club cups, with 17 dates including a play-off and a round of 16, and a
-    /// smaller division plays 16-club cups, with 11 dates and neither of those. How many World Cup dates there are does
-    /// not depend on it.
+    /// division of 12 to 16 clubs plays 16-club cups, with 11 dates and neither of those. The World Cup dates are the
+    /// same in every league that has them.
     /// </description>
     /// </item>
     /// <item>
@@ -98,23 +100,29 @@ public static class SeasonCalendarBuilder
             .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.TuesdayOffset))
             .ToList();
 
-        List<DateTime> leaguePhase = layout.LeaguePhaseWeeks
+        if (layout.Continental is not { } continental)
+        {
+            return new SeasonCalendar(startDate, leagueMatchdays, domesticCupRounds, null, [], []);
+        }
+
+        List<DateTime> leaguePhase = continental.LeaguePhaseWeeks
             .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.MondayOffset))
             .ToList();
 
         ContinentalCupDates continentalCups = new(
             leaguePhase,
-            layout.PlayOffWeeks is { } playOffWeeks ? LegsOf(firstThursday, playOffWeeks) : null,
-            layout.RoundOf16Weeks is { } roundOf16Weeks ? LegsOf(firstThursday, roundOf16Weeks) : null,
-            LegsOf(firstThursday, layout.QuarterFinalWeeks),
-            LegsOf(firstThursday, layout.SemiFinalWeeks),
-            KickoffOf(firstThursday, layout.ContinentalFinalWeek, CalendarTemplate.MondayOffset));
+            continental.PlayOffWeeks is { } playOffWeeks ? LegsOf(firstThursday, playOffWeeks) : null,
+            continental.RoundOf16Weeks is { } roundOf16Weeks ? LegsOf(firstThursday, roundOf16Weeks) : null,
+            LegsOf(firstThursday, continental.QuarterFinalWeeks),
+            LegsOf(firstThursday, continental.SemiFinalWeeks),
+            KickoffOf(firstThursday, continental.FinalWeek, CalendarTemplate.MondayOffset));
 
         List<DateTime> worldCupQualifierMatchdays = layout.QualifierWeeks
             .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.FridayOffset))
             .ToList();
 
-        // The continental final is the last club date, so the World Cup finals are counted from it.
+        // Only a league with continental cups gets here. Its continental final is the last club date, so the World Cup
+        // finals are counted from it.
         DateOnly lastClubDate = DateOnly.FromDateTime(continentalCups.Final);
         DateOnly worldCupFinalsStart = lastClubDate.AddDays(CalendarTemplate.DaysFromLastClubDateToWorldCupFinals);
 

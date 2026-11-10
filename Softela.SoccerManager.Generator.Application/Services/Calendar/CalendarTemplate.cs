@@ -2,8 +2,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
 /// The rules a season's layout is computed from. A week runs from Thursday to Wednesday, and weeks are numbered from 1.
-/// The league plays on Thursday and Sunday, the World Cup qualifiers on Friday, the continental cups on Monday and the
-/// domestic cup on Tuesday. In the club season, Wednesday and Saturday stay free; the World Cup finals use every day.
+/// The league plays on Thursday and Sunday and the domestic cup on Tuesday. A league whose divisions have 12 clubs or
+/// more also plays the World Cup qualifiers on Friday and the continental cups on Monday, and then the World Cup
+/// finals. In the club season, Wednesday and Saturday stay free; the World Cup finals use every day.
 /// </summary>
 internal static class CalendarTemplate
 {
@@ -25,6 +26,13 @@ internal static class CalendarTemplate
     public const int MaxClubsPerDivision = 20;
     public const int MaxDivisionsPerLeague = 5;
 
+    /// <summary>
+    /// The smallest division size whose league plays international competitions: the continental cups, the World Cup
+    /// qualifiers and the World Cup finals. It is the smallest even size above <see cref="MinClubsPerDivision"/>, so a
+    /// league of 10-club divisions plays only its league and its domestic cup.
+    /// </summary>
+    public const int MinClubsPerDivisionForInternationalCompetitions = 12;
+
     public const int MinClubsPerDivisionForLargeContinentalFormat = 18;
 
     public const int SmallFormatLeaguePhaseDateCount = 6;
@@ -45,9 +53,23 @@ internal static class CalendarTemplate
     public const int DaysBetweenWorldCupFinalsMatchdays = 1;
 
     /// <summary>
-    /// Tells which continental format a league plays. A division of at least
-    /// <see cref="MinClubsPerDivisionForLargeContinentalFormat"/> clubs plays the large format, with 32 clubs per cup,
-    /// a play-off and a round of 16. A smaller division plays the small format, with 16 clubs per cup and neither.
+    /// Tells whether a league plays international competitions: the continental cups, the World Cup qualifiers and the
+    /// World Cup finals. A division of at least <see cref="MinClubsPerDivisionForInternationalCompetitions"/> clubs
+    /// plays them; a smaller division plays only its league and its domestic cup.
+    /// </summary>
+    /// <param name="clubsPerDivision">The number of clubs in each division.</param>
+    /// <returns><c>true</c> when the league plays international competitions, <c>false</c> when it does not.</returns>
+    public static bool HasInternationalCompetitions(int clubsPerDivision)
+    {
+        return clubsPerDivision >= MinClubsPerDivisionForInternationalCompetitions;
+    }
+
+    /// <summary>
+    /// Tells which continental format a league plays. It only means something for divisions that have international
+    /// competitions, which is to say at least <see cref="MinClubsPerDivisionForInternationalCompetitions"/> clubs. A
+    /// division of at least <see cref="MinClubsPerDivisionForLargeContinentalFormat"/> clubs plays the large format,
+    /// with 32 clubs per cup, a play-off and a round of 16. A division of 12 to 16 clubs plays the small format,
+    /// with 16 clubs per cup and neither.
     /// </summary>
     /// <param name="clubsPerDivision">The number of clubs in each division.</param>
     /// <returns><c>true</c> for the large format, <c>false</c> for the small format.</returns>
