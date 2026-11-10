@@ -5,6 +5,7 @@ using Softela.SoccerManager.Generator.Application.Repositories;
 using Softela.SoccerManager.Generator.Infrastructure.Database;
 using Softela.SoccerManager.Generator.Infrastructure.Database.Connections;
 using Softela.SoccerManager.Generator.Infrastructure.Database.Dapper;
+using Softela.SoccerManager.Generator.Infrastructure.Database.Repositories;
 
 namespace Softela.SoccerManager.Generator.Infrastructure;
 
@@ -30,10 +31,19 @@ public static class BuilderExtensions
         // Maps DATE columns to DateOnly explicitly, so the round-trip does not depend on the driver's own DateOnly support.
         SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
 
+        // Scoped, so the repositories and the unit of work of one function run share one data context and transaction.
         services
             .AddScoped<IDatabaseConnection, DatabaseConnection>()
             .AddScoped<IDapperDataContext, DapperDataContext>()
-            .AddScoped<IUnitOfWork, UnitOfWork>();
+            .AddScoped<IUnitOfWork, UnitOfWork>()
+            .AddScoped<ICompetitionRepository, CompetitionRepository>()
+            .AddScoped<ILeagueRepository, LeagueRepository>()
+            .AddScoped<ILeagueTeamRepository, LeagueTeamRepository>()
+            .AddScoped<IMatchRepository, MatchRepository>()
+            .AddScoped<IMatchTeamStatisticRepository, MatchTeamStatisticRepository>()
+            .AddScoped<ISeasonRepository, SeasonRepository>()
+            .AddScoped<IStandingRepository, StandingRepository>()
+            .AddScoped<ITeamRepository, TeamRepository>();
 
         return services;
     }

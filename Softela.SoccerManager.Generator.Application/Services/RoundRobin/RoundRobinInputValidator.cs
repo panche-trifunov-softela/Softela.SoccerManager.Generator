@@ -37,6 +37,18 @@ internal static class RoundRobinInputValidator
     }
 
     /// <summary>
+    /// Gets the most clubs of a group that may be in shared-stadium pairs: half the group, rounded down. This limit is
+    /// what guarantees ClubPlacement a free position for every pair, for every seed, and the fixture generator refuses
+    /// a league over it before scheduling.
+    /// </summary>
+    /// <param name="groupSize">The number of clubs in the group.</param>
+    /// <returns>The most clubs of the group that may be in pairs.</returns>
+    internal static int MaxPairedClubs(int groupSize)
+    {
+        return groupSize / 2;
+    }
+
+    /// <summary>
     /// Checks the groups and maps each club to its group.
     /// </summary>
     /// <param name="groups">The clubs of each group.</param>
@@ -147,8 +159,7 @@ internal static class RoundRobinInputValidator
 
         for (int group = 0; group < groups.Count; group++)
         {
-            // This limit is what guarantees ClubPlacement a free position for every pair, for every seed.
-            int limit = groups[group].Count / 2;
+            int limit = MaxPairedClubs(groups[group].Count);
 
             if (pairedPerGroup[group] > limit)
             {
