@@ -25,4 +25,15 @@ public interface IUnitOfWork
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task that completes once the transaction has been rolled back.</returns>
     Task RollbackAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes an exclusive named lock that the current transaction holds until it commits or rolls back. It never waits:
+    /// when another transaction holds the lock, it returns at once.
+    /// </summary>
+    /// <param name="resource">The name of the lock, at most 255 characters.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>
+    /// <see langword="true"/> when the lock was granted; <see langword="false"/> when another transaction holds it.
+    /// </returns>
+    Task<bool> TryLockAsync(string resource, CancellationToken cancellationToken = default);
 }
