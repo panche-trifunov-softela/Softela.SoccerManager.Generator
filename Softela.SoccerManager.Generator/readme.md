@@ -3,6 +3,9 @@
 An Azure Functions app (.NET 10, isolated worker) that writes fixtures into the SoccerManager database through its
 stored procedures.
 
+The database needs the backend's scripts up to `V1_0_0_57`: each write reads its season through
+`dbo.GetMatchesBySeason`, so against an older database the first league with a season to write fails the run.
+
 ## GenerateLeagueFixtures
 
 A timer function with the schedule `0 0 */6 * * *`: every six hours, at 00:00, 06:00, 12:00 and 18:00 host time.

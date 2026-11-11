@@ -4,7 +4,7 @@ using Softela.SoccerManager.Generator.Application.Services.RoundRobin;
 namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
 
 /// <summary>
-/// Everything the writer needs for one league's season. The seed of the fixtures is the season's id.
+/// Everything needed to write the league matches of one league's season. The seed of the fixtures is the season's id.
 /// </summary>
 /// <param name="League">The league.</param>
 /// <param name="Season">The newest season of the league.</param>

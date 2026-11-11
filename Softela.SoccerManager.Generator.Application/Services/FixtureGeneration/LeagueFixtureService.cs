@@ -1,40 +1,21 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
-using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Models;
 using Softela.SoccerManager.Generator.Application.Repositories;
 
 namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
 
 /// <summary>
-/// Writes the league matches of every league's newest season that has none yet, league by league.
+/// Runs the steps of every league's newest season, league by league. The steps are the registered
+/// <see cref="ILeagueStep"/> implementations, and they run in the order they are registered.
 /// </summary>
 internal sealed class LeagueFixtureService : ILeagueFixtureService
 {
-    /// <summary>
-    /// How long Standings must have been unchanged before a season is written, so that a person still setting the
-    /// season up is not overtaken. This is the hour rule.
-    /// </summary>
-    private static readonly TimeSpan StandingsSettleTime = TimeSpan.FromHours(1);
-
-    /// <summary>
-    /// The format of the time of the newest Standings change in a log line.
-    /// </summary>
-    private const string StandingsChangedAtFormat = "yyyy-MM-dd HH:mm:ss";
-
-    /// <summary>
-    /// The start of every log line about a league's season, the same as the writer's.
-    /// </summary>
-    private const string LogPrefix = LeagueFixtureWriter.LogPrefix;
-
     private readonly ILeagueRepository _leagueRepository;
     private readonly ISeasonRepository _seasonRepository;
     private readonly ICompetitionRepository _competitionRepository;
-    private readonly IStandingRepository _standingRepository;
-    private readonly ILeagueTeamRepository _leagueTeamRepository;
     private readonly ITeamRepository _teamRepository;
     private readonly IMatchRepository _matchRepository;
-    private readonly LeagueFixtureWriter _leagueFixtureWriter;
+    private readonly IReadOnlyList<ILeagueStep> _steps;
     private readonly ILogger<LeagueFixtureService> _logger;
 
     /// <summary>
@@ -43,31 +24,25 @@ internal sealed class LeagueFixtureService : ILeagueFixtureService
     /// <param name="leagueRepository">The repository that reads leagues.</param>
     /// <param name="seasonRepository">The repository that reads seasons.</param>
     /// <param name="competitionRepository">The repository that reads competitions.</param>
-    /// <param name="standingRepository">The repository that reads Standings.</param>
-    /// <param name="leagueTeamRepository">The repository that reads leagues' rosters.</param>
     /// <param name="teamRepository">The repository that reads teams.</param>
     /// <param name="matchRepository">The repository that reads matches.</param>
-    /// <param name="leagueFixtureWriter">The writer of one league's season.</param>
+    /// <param name="steps">The steps of a league's newest season, in the order they run.</param>
     /// <param name="logger">The logger.</param>
     public LeagueFixtureService(
         ILeagueRepository leagueRepository,
         ISeasonRepository seasonRepository,
         ICompetitionRepository competitionRepository,
-        IStandingRepository standingRepository,
-        ILeagueTeamRepository leagueTeamRepository,
         ITeamRepository teamRepository,
         IMatchRepository matchRepository,
-        LeagueFixtureWriter leagueFixtureWriter,
+        IEnumerable<ILeagueStep> steps,
         ILogger<LeagueFixtureService> logger)
     {
         _leagueRepository = leagueRepository;
         _seasonRepository = seasonRepository;
         _competitionRepository = competitionRepository;
-        _standingRepository = standingRepository;
-        _leagueTeamRepository = leagueTeamRepository;
         _teamRepository = teamRepository;
         _matchRepository = matchRepository;
-        _leagueFixtureWriter = leagueFixtureWriter;
+        _steps = steps.ToList();
         _logger = logger;
     }
 
@@ -103,14 +78,14 @@ internal sealed class LeagueFixtureService : ILeagueFixtureService
     }
 
     /// <summary>
-    /// Writes the newest season of one league, or says in the log why it does not.
+    /// Runs the steps of one league's newest season, or says in the log why there is nothing to run them on.
     /// </summary>
     /// <param name="league">The league.</param>
     /// <param name="runTime">The moment of the run, in UTC.</param>
     /// <param name="teams">Every team.</param>
     /// <param name="matches">Every match of every league.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes once the league has been handled.</returns>
+    /// <returns>A task that completes once every step has been handled.</returns>
     private async Task GenerateLeagueAsync(
         GetLeaguesResult league,
         DateTime runTime,
@@ -150,92 +125,12 @@ internal sealed class LeagueFixtureService : ILeagueFixtureService
         }
 
         HashSet<int> seasonIds = seasons.Select(candidate => candidate.Id).ToHashSet();
-        HashSet<int> divisionIds = divisions.Select(division => division.Id).ToHashSet();
         List<GetMatchesResult> leagueMatches = matches.Where(match => seasonIds.Contains(match.SeasonId)).ToList();
-        GetMatchesResult? existing = LeagueInputBuilder.FindDivisionMatch(season.Id, divisionIds, leagueMatches);
+        LeagueStepContext context = new(league, season, divisions, teams, leagueMatches, runTime);
 
-        if (existing is not null)
+        foreach (ILeagueStep step in _steps)
         {
-            GetCompetitionsResult existingDivision = divisions.First(division => division.Id == existing.CompetitionId);
-
-            _logger.LogInformation(
-                LogPrefix + ": division '{DivisionName}' (competition {CompetitionId}) already has matches, "
-                + "so the season is not written again.",
-                league.Name,
-                league.Id,
-                season.SeasonNumber,
-                season.Id,
-                existingDivision.Name,
-                existingDivision.Id);
-
-            return;
+            await step.RunAsync(context, cancellationToken);
         }
-
-        Dictionary<int, IReadOnlyList<GetStandingsResult>> standingsByDivision = [];
-
-        foreach (GetCompetitionsResult division in divisions)
-        {
-            standingsByDivision[division.Id] = await _standingRepository.GetByCompetitionAndSeasonAsync(
-                division.Id,
-                season.Id);
-        }
-
-        if (standingsByDivision.Values.All(rows => rows.Count == 0))
-        {
-            _logger.LogInformation(
-                LogPrefix + ": no division has Standings rows yet, so there is nothing to write.",
-                league.Name,
-                league.Id,
-                season.SeasonNumber,
-                season.Id);
-
-            return;
-        }
-
-        DateTime newestChange = standingsByDivision.Values.SelectMany(rows => rows).Max(row => row.ModifiedAt);
-
-        if (runTime - newestChange < StandingsSettleTime)
-        {
-            _logger.LogInformation(
-                LogPrefix + ": its newest Standings change, {StandingsChangedAt} UTC, is under an hour old, "
-                + "so the season waits for a later tick.",
-                league.Name,
-                league.Id,
-                season.SeasonNumber,
-                season.Id,
-                newestChange.ToString(StandingsChangedAtFormat, CultureInfo.InvariantCulture));
-
-            return;
-        }
-
-        IReadOnlyList<GetLeagueTeamsResult> roster = await _leagueTeamRepository.GetByLeagueIdAsync(league.Id);
-        LeagueInput input;
-
-        try
-        {
-            input = LeagueInputBuilder.Build(
-                league,
-                season,
-                divisions,
-                standingsByDivision,
-                roster,
-                teams,
-                leagueMatches,
-                runTime);
-        }
-        catch (SeasonRefusedException refusal)
-        {
-            _logger.LogError(
-                LogPrefix + " is refused: {Reason} The next tick tries again.",
-                league.Name,
-                league.Id,
-                season.SeasonNumber,
-                season.Id,
-                refusal.Message);
-
-            return;
-        }
-
-        await _leagueFixtureWriter.WriteAsync(input, runTime, cancellationToken);
     }
 }

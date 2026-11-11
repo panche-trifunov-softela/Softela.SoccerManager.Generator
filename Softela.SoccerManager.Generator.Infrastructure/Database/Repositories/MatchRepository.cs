@@ -37,6 +37,25 @@ internal sealed class MatchRepository : IMatchRepository
     }
 
     /// <summary>
+    /// Gets every match of one season, friendlies included, ordered by kickoff and then by id.
+    /// </summary>
+    /// <param name="seasonId">The identifier of the season.</param>
+    /// <returns>The matches of the season.</returns>
+    public async Task<IReadOnlyList<GetMatchesResult>> GetBySeasonIdAsync(int seasonId)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("@SeasonId", seasonId, DbType.Int32);
+
+        var rows = await _context.Connection.QueryAsync<GetMatchesResult>(
+            "dbo.GetMatchesBySeason",
+            parameters,
+            transaction: _context.Transaction,
+            commandType: CommandType.StoredProcedure).ConfigureAwait(false);
+
+        return rows.AsList();
+    }
+
+    /// <summary>
     /// Inserts one match. The parameters mirror those of <c>dbo.InsertMatch</c>, which has no defaults.
     /// </summary>
     /// <param name="seasonId">The identifier of the season the match belongs to.</param>

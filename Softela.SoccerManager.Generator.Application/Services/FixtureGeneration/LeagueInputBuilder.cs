@@ -101,7 +101,7 @@ internal static class LeagueInputBuilder
     /// <param name="teams">Every team.</param>
     /// <param name="leagueMatches">The matches of all of the league's seasons.</param>
     /// <param name="runTime">The moment of the run, in UTC.</param>
-    /// <returns>The input the writer needs for the season.</returns>
+    /// <returns>Everything needed to write the season's league matches.</returns>
     /// <exception cref="SeasonRefusedException">
     /// Thrown when:
     /// <list type="bullet">

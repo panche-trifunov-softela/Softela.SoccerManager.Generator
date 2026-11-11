@@ -1,8 +1,9 @@
 namespace Softela.SoccerManager.Generator.Application.Models;
 
 /// <summary>
-/// One row returned by the <c>dbo.GetMatches</c> stored procedure. It holds only the columns the generator reads;
-/// Dapper ignores the others, among them the commentary, which is a native JSON column.
+/// One row returned by the <c>dbo.GetMatches</c> or <c>dbo.GetMatchesBySeason</c> stored procedure. It holds only the
+/// columns the generator reads; Dapper ignores the others, among them the commentary of <c>dbo.GetMatches</c>, which
+/// is a native JSON column.
 /// </summary>
 public sealed class GetMatchesResult
 {
