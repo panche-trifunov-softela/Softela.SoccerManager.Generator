@@ -14,6 +14,13 @@ public interface IMatchRepository
     Task<IReadOnlyList<GetMatchesResult>> GetAllAsync();
 
     /// <summary>
+    /// Gets every match of one season, friendlies included, ordered by kickoff and then by id.
+    /// </summary>
+    /// <param name="seasonId">The identifier of the season.</param>
+    /// <returns>The matches of the season.</returns>
+    Task<IReadOnlyList<GetMatchesResult>> GetBySeasonIdAsync(int seasonId);
+
+    /// <summary>
     /// Inserts one match. The parameters mirror those of <c>dbo.InsertMatch</c>.
     /// </summary>
     /// <param name="seasonId">The identifier of the season the match belongs to.</param>
