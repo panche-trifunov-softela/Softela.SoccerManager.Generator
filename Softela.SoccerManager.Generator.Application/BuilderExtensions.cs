@@ -21,7 +21,8 @@ public static class BuilderExtensions
             .AddScoped<ILeagueFixtureService, LeagueFixtureService>()
             .AddScoped<LeagueFixtureWriter>()
             .AddScoped<MatchInserter>()
-            .AddScoped<ILeagueStep, LeagueMatchesStep>();
+            .AddScoped<ILeagueStep, LeagueMatchesStep>()
+            .AddScoped<ILeagueStep, DomesticCupStep>();
 
         return services;
     }

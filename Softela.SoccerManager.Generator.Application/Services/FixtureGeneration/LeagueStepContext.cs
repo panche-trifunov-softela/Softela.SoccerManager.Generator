@@ -11,6 +11,10 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// <param name="Divisions">
 /// The league's competitions with an Order above 0, in ascending Order; there is at least one.
 /// </param>
+/// <param name="Competitions">
+/// Every competition of the league as read at the start of the tick: its divisions, its cups and any other, in no
+/// particular order. The domestic cup step finds the cup among them.
+/// </param>
 /// <param name="Teams">Every team, as read at the start of the tick.</param>
 /// <param name="LeagueMatches">
 /// The matches of all of the league's seasons, friendlies included, as read at the start of the tick. They do not show
@@ -21,6 +25,7 @@ internal sealed record LeagueStepContext(
     GetLeaguesResult League,
     GetSeasonsResult Season,
     IReadOnlyList<GetCompetitionsResult> Divisions,
+    IReadOnlyList<GetCompetitionsResult> Competitions,
     IReadOnlyList<GetTeamsResult> Teams,
     IReadOnlyList<GetMatchesResult> LeagueMatches,
     DateTime RunTime)
