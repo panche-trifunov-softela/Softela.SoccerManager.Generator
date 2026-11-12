@@ -1,8 +1,8 @@
 namespace Softela.SoccerManager.Generator.Application.Core.Exceptions;
 
 /// <summary>
-/// Thrown when a league's newest season cannot be written as its rows stand. The message says what is wrong and how
-/// to fix it, and the caller logs it and moves on to the next league. Nothing else catches it.
+/// Thrown when a step cannot write a league's newest season as its rows stand. The message says what is wrong and how
+/// to fix it. The step that called the code catches it and logs it, and the tick moves on to its next step.
 /// </summary>
 public sealed class SeasonRefusedException : Exception
 {
