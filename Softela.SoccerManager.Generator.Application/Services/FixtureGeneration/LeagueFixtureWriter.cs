@@ -48,7 +48,8 @@ internal sealed class LeagueFixtureWriter
     /// <param name="season">The season; its id names the lock.</param>
     /// <param name="insertAsync">
     /// Inserts the season's rows on the open transaction, given the season's matches as read after the lock was
-    /// taken; its result is true when it inserted any, and false when there was nothing to write.
+    /// taken; its result is true when it inserted rows, and false when it inserted none, whatever its reason; the
+    /// caller knows the reason.
     /// </param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>

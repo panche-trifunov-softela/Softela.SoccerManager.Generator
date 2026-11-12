@@ -8,7 +8,11 @@ namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 /// </summary>
 public static class SquadStrengthRanking
 {
-    private const int BestCount = 16;
+    /// <summary>
+    /// The number of best players that make a squad's strength. The domestic cup step also uses it as the number of
+    /// rated players a full squad needs.
+    /// </summary>
+    internal const int BestCount = 16;
 
     /// <summary>
     /// Measures a club's squad. Each player counts once, however many rows the player has, and a missing rating

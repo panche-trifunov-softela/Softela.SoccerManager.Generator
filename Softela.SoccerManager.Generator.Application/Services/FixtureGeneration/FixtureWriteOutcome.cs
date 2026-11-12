@@ -11,7 +11,7 @@ internal enum FixtureWriteOutcome
     LockHeld,
 
     /// <summary>
-    /// The caller found nothing to write in the season's matches, so the transaction was rolled back.
+    /// The caller inserted nothing, so the transaction was rolled back. The caller keeps its own reason.
     /// </summary>
     NotWritten,
 

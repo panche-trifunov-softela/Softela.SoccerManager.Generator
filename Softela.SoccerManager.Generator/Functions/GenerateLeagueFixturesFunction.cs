@@ -4,9 +4,9 @@ using Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
 namespace Softela.SoccerManager.Generator.Functions;
 
 /// <summary>
-/// Writes the league matches of every league's newest season that has none yet. It runs every six hours, at 00:00,
-/// 06:00, 12:00 and 18:00 host time. An exception that the service lets through fails the run, so the host reports it
-/// and the next tick starts over from the first league.
+/// Writes the league matches of every league's newest season that has none yet, and its domestic cup ties as they
+/// become known. It runs every six hours, at 00:00, 06:00, 12:00 and 18:00 host time. An exception that the service
+/// lets through fails the run, so the host reports it and the next tick starts over from the first league.
 /// </summary>
 public sealed class GenerateLeagueFixturesFunction
 {

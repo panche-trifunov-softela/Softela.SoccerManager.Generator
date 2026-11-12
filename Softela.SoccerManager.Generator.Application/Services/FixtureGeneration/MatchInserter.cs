@@ -4,8 +4,9 @@ using Softela.SoccerManager.Generator.Application.Services.RoundRobin;
 namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
 
 /// <summary>
-/// Inserts matches, each with the statistics rows of its two clubs, on the caller's open transaction. It never begins,
-/// commits or rolls back a transaction, so its rows are kept or dropped with the caller's.
+/// Inserts league matches and staged matches, each with the statistics rows of its two clubs, on the caller's open
+/// transaction. It never begins, commits or rolls back a transaction, so its rows are kept or dropped with the
+/// caller's.
 /// </summary>
 internal sealed class MatchInserter
 {
@@ -63,6 +64,43 @@ internal sealed class MatchInserter
                 await InsertStatisticAsync(fixture.HomeClubId, matchId, true, runTime);
                 await InsertStatisticAsync(fixture.AwayClubId, matchId, false, runTime);
             }
+        }
+    }
+
+    /// <summary>
+    /// Inserts staged matches, such as the ties of a domestic cup, in the order given. Each match is followed by the
+    /// statistics rows of its two clubs, the home club first, and the match goes first for the same reason as in a
+    /// league match.
+    /// </summary>
+    /// <param name="seasonId">The id of the season the matches belong to.</param>
+    /// <param name="matches">The matches to insert.</param>
+    /// <param name="runTime">The moment of the run, in UTC; it is the time stamp of each row.</param>
+    /// <returns>A task that completes once every row has been inserted.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="matches"/> is null.</exception>
+    public async Task InsertStagedMatchesAsync(int seasonId, IReadOnlyList<StagedMatch> matches, DateTime runTime)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+
+        foreach (StagedMatch match in matches)
+        {
+            int matchId = await _matchRepository.CreateStagedAsync(
+                seasonId: seasonId,
+                competitionId: match.CompetitionId,
+                refereeId: null,
+                startDateTime: match.Kickoff,
+                commentary: null,
+                attendance: 0,
+                isStarted: false,
+                stage: (byte)match.Stage,
+                roundNumber: match.RoundNumber,
+                leg: match.Leg,
+                createdAt: runTime,
+                modifiedAt: runTime,
+                createdBy: GeneratorUserId,
+                modifiedBy: GeneratorUserId);
+
+            await InsertStatisticAsync(match.HomeLeagueTeamId, matchId, true, runTime);
+            await InsertStatisticAsync(match.AwayLeagueTeamId, matchId, false, runTime);
         }
     }
 

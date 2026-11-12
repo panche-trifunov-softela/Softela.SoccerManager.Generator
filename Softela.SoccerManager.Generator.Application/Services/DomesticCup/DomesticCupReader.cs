@@ -13,9 +13,10 @@ namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 public static class DomesticCupReader
 {
     /// <summary>
-    /// The stage of a domestic cup match: the backend's <c>MatchStage.DomesticCupRound</c> (V1_0_0_57).
+    /// The <see cref="MatchStage.DomesticCupRound"/> code as the reader compares it with
+    /// <see cref="SeasonMatch.Stage"/>.
     /// </summary>
-    internal const byte DomesticCupRoundStage = 1;
+    internal const byte DomesticCupRoundStage = (byte)MatchStage.DomesticCupRound;
 
     /// <summary>
     /// The purpose that the draw's random source is derived for.
