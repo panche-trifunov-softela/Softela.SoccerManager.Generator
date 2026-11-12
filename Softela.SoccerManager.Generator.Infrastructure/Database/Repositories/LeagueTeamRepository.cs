@@ -7,7 +7,7 @@ using Softela.SoccerManager.Generator.Infrastructure.Database.Dapper;
 namespace Softela.SoccerManager.Generator.Infrastructure.Database.Repositories;
 
 /// <summary>
-/// Reads the rosters of leagues through the backend's stored procedures.
+/// Reads the rosters of leagues and the squads of their clubs through the backend's stored procedures.
 /// </summary>
 internal sealed class LeagueTeamRepository : ILeagueTeamRepository
 {
@@ -34,6 +34,26 @@ internal sealed class LeagueTeamRepository : ILeagueTeamRepository
 
         var rows = await _context.Connection.QueryAsync<GetLeagueTeamsResult>(
             "dbo.GetLeagueTeams",
+            parameters,
+            transaction: _context.Transaction,
+            commandType: CommandType.StoredProcedure).ConfigureAwait(false);
+
+        return rows.AsList();
+    }
+
+    /// <summary>
+    /// Gets the squad of one club: its players with their current ratings. A player registered twice in the club
+    /// appears twice.
+    /// </summary>
+    /// <param name="leagueTeamId">The identifier of the league team, the roster entry.</param>
+    /// <returns>The players of the squad.</returns>
+    public async Task<IReadOnlyList<GetLeagueTeamSquadResult>> GetSquadAsync(int leagueTeamId)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("@LeagueTeamId", leagueTeamId, DbType.Int32);
+
+        var rows = await _context.Connection.QueryAsync<GetLeagueTeamSquadResult>(
+            "dbo.GetLeagueTeamSquad",
             parameters,
             transaction: _context.Transaction,
             commandType: CommandType.StoredProcedure).ConfigureAwait(false);

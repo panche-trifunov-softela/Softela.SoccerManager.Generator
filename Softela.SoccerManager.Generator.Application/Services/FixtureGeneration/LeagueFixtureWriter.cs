@@ -57,7 +57,7 @@ internal sealed class LeagueFixtureWriter
     public async Task<FixtureWriteOutcome> WriteAsync(
         GetLeaguesResult league,
         GetSeasonsResult season,
-        Func<IReadOnlyList<GetMatchesResult>, Task<bool>> insertAsync,
+        Func<IReadOnlyList<GetMatchesBySeasonResult>, Task<bool>> insertAsync,
         CancellationToken cancellationToken = default)
     {
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -74,7 +74,8 @@ internal sealed class LeagueFixtureWriter
             }
 
             // Read inside the transaction and after the lock, so a run that wrote the season first is seen.
-            IReadOnlyList<GetMatchesResult> seasonMatches = await _matchRepository.GetBySeasonIdAsync(season.Id);
+            IReadOnlyList<GetMatchesBySeasonResult> seasonMatches =
+                await _matchRepository.GetBySeasonIdAsync(season.Id);
 
             if (!await insertAsync(seasonMatches))
             {

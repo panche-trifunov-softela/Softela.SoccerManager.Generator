@@ -30,4 +30,10 @@ public sealed class GetCompetitionsResult
     /// The position of the competition in its league; an order above 0 marks a division.
     /// </summary>
     public int Order { get; set; }
+
+    /// <summary>
+    /// The oldest age allowed to play in the competition, or <see langword="null"/> when it has no age limit, which is
+    /// how a youth cup differs from the domestic cup.
+    /// </summary>
+    public int? MaxAgeAllowed { get; set; }
 }
