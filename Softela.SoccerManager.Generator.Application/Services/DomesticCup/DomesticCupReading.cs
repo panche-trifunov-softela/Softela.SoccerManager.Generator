@@ -1,4 +1,5 @@
 using Softela.SoccerManager.Generator.Application.Services.Calendar;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
@@ -37,7 +38,7 @@ public sealed record DomesticCupReading(
     int CupCompetitionId,
     IReadOnlyList<DomesticCupEntrant> Entrants,
     SeasonCalendar? Calendar,
-    DomesticCupBracket? Bracket,
+    KnockoutBracket? Bracket,
     DomesticCupProgress? Progress,
-    IReadOnlyList<DomesticCupKnownTie> NewTies,
+    IReadOnlyList<KnockoutKnownTie> NewTies,
     IReadOnlyList<SeasonMatch> SeasonMatches);

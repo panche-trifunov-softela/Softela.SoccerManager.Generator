@@ -1,4 +1,5 @@
 using Softela.SoccerManager.Generator.Application.Core.Randomness;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 
@@ -65,7 +66,7 @@ public static class DomesticCupBracketBuilder
     /// Thrown when there are fewer than 2 entrants, a club is listed twice, or the bye clubs are not entrants or are
     /// not as many as the bracket needs.
     /// </exception>
-    public static DomesticCupBracket Build(
+    public static KnockoutBracket Build(
         IReadOnlyList<int> entrants,
         IReadOnlyList<int> byeClubs,
         SeededRandom random)
@@ -85,7 +86,7 @@ public static class DomesticCupBracketBuilder
         // The order of the three shuffles is fixed: the clubs without a bye, the bye clubs, the round 2 pairs.
         random.Shuffle(others);
 
-        List<List<DomesticCupTie>> rounds = new() { BuildFirstRound(others, firstRoundTies) };
+        List<List<KnockoutTie>> rounds = new() { BuildFirstRound(others, firstRoundTies) };
 
         if (roundCount == 1)
         {
@@ -110,17 +111,17 @@ public static class DomesticCupBracketBuilder
     /// <param name="shuffledOthers">The clubs without a bye, already shuffled.</param>
     /// <param name="tieCount">The number of round 1 ties.</param>
     /// <returns>The round 1 ties, numbered from 1.</returns>
-    private static List<DomesticCupTie> BuildFirstRound(List<int> shuffledOthers, int tieCount)
+    private static List<KnockoutTie> BuildFirstRound(List<int> shuffledOthers, int tieCount)
     {
-        List<DomesticCupTie> ties = new();
+        List<KnockoutTie> ties = new();
 
         for (int tie = 1; tie <= tieCount; tie++)
         {
-            ties.Add(new DomesticCupTie(
+            ties.Add(new KnockoutTie(
                 FirstRound,
                 tie,
-                DomesticCupSide.Club(shuffledOthers[(2 * tie) - 2]),
-                DomesticCupSide.Club(shuffledOthers[(2 * tie) - 1])));
+                KnockoutSide.Club(shuffledOthers[(2 * tie) - 2]),
+                KnockoutSide.Club(shuffledOthers[(2 * tie) - 1])));
         }
 
         return ties;
@@ -135,38 +136,38 @@ public static class DomesticCupBracketBuilder
     /// <param name="firstRoundTies">The number of round 1 ties.</param>
     /// <param name="random">The random source; its state advances.</param>
     /// <returns>The round 2 ties, numbered from 1.</returns>
-    private static List<DomesticCupTie> BuildSecondRound(
+    private static List<KnockoutTie> BuildSecondRound(
         List<int> shuffledByes,
         int firstRoundTies,
         SeededRandom random)
     {
-        List<(DomesticCupSide First, DomesticCupSide Second)> pairs = new();
+        List<(KnockoutSide First, KnockoutSide Second)> pairs = new();
         int paired = Math.Min(shuffledByes.Count, firstRoundTies);
 
         for (int i = 1; i <= paired; i++)
         {
-            pairs.Add((DomesticCupSide.Club(shuffledByes[i - 1]), DomesticCupSide.WinnerOf(FirstRound, i)));
+            pairs.Add((KnockoutSide.Club(shuffledByes[i - 1]), KnockoutSide.WinnerOf(FirstRound, i)));
         }
 
         // Only one of the two loops below can add pairs: byes and round 1 ties together fill half the bracket, so
         // whichever is more numerous exceeds the other by an even number.
         for (int j = paired; j < shuffledByes.Count - 1; j += 2)
         {
-            pairs.Add((DomesticCupSide.Club(shuffledByes[j]), DomesticCupSide.Club(shuffledByes[j + 1])));
+            pairs.Add((KnockoutSide.Club(shuffledByes[j]), KnockoutSide.Club(shuffledByes[j + 1])));
         }
 
         for (int j = paired + 1; j < firstRoundTies; j += 2)
         {
-            pairs.Add((DomesticCupSide.WinnerOf(FirstRound, j), DomesticCupSide.WinnerOf(FirstRound, j + 1)));
+            pairs.Add((KnockoutSide.WinnerOf(FirstRound, j), KnockoutSide.WinnerOf(FirstRound, j + 1)));
         }
 
         random.Shuffle(pairs);
 
-        List<DomesticCupTie> ties = new();
+        List<KnockoutTie> ties = new();
 
         for (int tie = 1; tie <= pairs.Count; tie++)
         {
-            ties.Add(new DomesticCupTie(SecondRound, tie, pairs[tie - 1].First, pairs[tie - 1].Second));
+            ties.Add(new KnockoutTie(SecondRound, tie, pairs[tie - 1].First, pairs[tie - 1].Second));
         }
 
         return ties;
@@ -178,17 +179,17 @@ public static class DomesticCupBracketBuilder
     /// <param name="round">The 1-based number of the round; it is at least 3.</param>
     /// <param name="tieCount">The number of ties in the round.</param>
     /// <returns>The ties of the round, numbered from 1.</returns>
-    private static List<DomesticCupTie> BuildLaterRound(int round, int tieCount)
+    private static List<KnockoutTie> BuildLaterRound(int round, int tieCount)
     {
-        List<DomesticCupTie> ties = new();
+        List<KnockoutTie> ties = new();
 
         for (int tie = 1; tie <= tieCount; tie++)
         {
-            ties.Add(new DomesticCupTie(
+            ties.Add(new KnockoutTie(
                 round,
                 tie,
-                DomesticCupSide.WinnerOf(round - 1, (2 * tie) - 1),
-                DomesticCupSide.WinnerOf(round - 1, 2 * tie)));
+                KnockoutSide.WinnerOf(round - 1, (2 * tie) - 1),
+                KnockoutSide.WinnerOf(round - 1, 2 * tie)));
         }
 
         return ties;
@@ -199,8 +200,8 @@ public static class DomesticCupBracketBuilder
     /// </summary>
     /// <param name="rounds">The rounds, round 1 first.</param>
     /// <returns>The bracket.</returns>
-    private static DomesticCupBracket ToBracket(List<List<DomesticCupTie>> rounds)
+    private static KnockoutBracket ToBracket(List<List<KnockoutTie>> rounds)
     {
-        return new DomesticCupBracket(rounds.Select(round => (IReadOnlyList<DomesticCupTie>)round).ToList());
+        return new KnockoutBracket(rounds.Select(round => (IReadOnlyList<KnockoutTie>)round).ToList());
     }
 }

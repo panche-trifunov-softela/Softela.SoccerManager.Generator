@@ -2,6 +2,7 @@ using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Core.Randomness;
 using Softela.SoccerManager.Generator.Application.Services.Calendar;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
@@ -175,13 +176,13 @@ public static class DomesticCupReader
     /// <param name="winners">The ties decided so far.</param>
     /// <returns>The ties with both clubs known, in round order and then tie order.</returns>
     /// <exception cref="SeasonRefusedException">Thrown when the draw library refuses the winners.</exception>
-    internal static IReadOnlyList<DomesticCupKnownTie> KnownTiesOf(
-        DomesticCupBracket bracket,
-        IReadOnlyList<DomesticCupWinner> winners)
+    internal static IReadOnlyList<KnockoutKnownTie> KnownTiesOf(
+        KnockoutBracket bracket,
+        IReadOnlyList<KnockoutWinner> winners)
     {
         try
         {
-            return DomesticCupTieResolver.KnownTies(bracket, winners);
+            return KnockoutTieResolver.KnownTies(bracket, winners);
         }
         catch (ArgumentException exception) when (exception is not ArgumentNullException
             and not ArgumentOutOfRangeException)
@@ -276,7 +277,7 @@ public static class DomesticCupReader
         List<int> entrantIds = entrants.Select(entrant => entrant.LeagueTeamId).ToList();
         List<int> byes = entrantIds.Where(clubId => !firstRoundClubs.Contains(clubId)).ToList();
         SeededRandom random = CreateDrawRandom(seasonId);
-        DomesticCupBracket bracket;
+        KnockoutBracket bracket;
 
         try
         {
@@ -304,7 +305,7 @@ public static class DomesticCupReader
             .Select(tie => (tie.RoundNumber, tie.TieNumber))
             .ToHashSet();
 
-        List<DomesticCupKnownTie> newTies = KnownTiesOf(bracket, progress.Winners)
+        List<KnockoutKnownTie> newTies = KnownTiesOf(bracket, progress.Winners)
             .Where(tie => !written.Contains((tie.RoundNumber, tie.TieNumber)))
             .ToList();
 

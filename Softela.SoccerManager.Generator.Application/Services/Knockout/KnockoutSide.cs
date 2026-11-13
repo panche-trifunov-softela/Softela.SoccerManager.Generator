@@ -1,17 +1,17 @@
-namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
+namespace Softela.SoccerManager.Generator.Application.Services.Knockout;
 
 /// <summary>
 /// One side of a cup tie: either a known club, or the winner of an earlier tie. Exactly one of the two forms is set.
 /// </summary>
-public sealed record DomesticCupSide
+public sealed record KnockoutSide
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="DomesticCupSide"/> class.
+    /// Initializes a new instance of the <see cref="KnockoutSide"/> class.
     /// </summary>
     /// <param name="leagueTeamId">The league team id of the club, or null when the side is a winner.</param>
     /// <param name="winnerOfRoundNumber">The round of the earlier tie, or null when the side is a club.</param>
     /// <param name="winnerOfTieNumber">The number of the earlier tie, or null when the side is a club.</param>
-    private DomesticCupSide(int? leagueTeamId, int? winnerOfRoundNumber, int? winnerOfTieNumber)
+    private KnockoutSide(int? leagueTeamId, int? winnerOfRoundNumber, int? winnerOfTieNumber)
     {
         LeagueTeamId = leagueTeamId;
         WinnerOfRoundNumber = winnerOfRoundNumber;
@@ -43,9 +43,9 @@ public sealed record DomesticCupSide
     /// </summary>
     /// <param name="leagueTeamId">The league team id of the club.</param>
     /// <returns>A side holding the club.</returns>
-    public static DomesticCupSide Club(int leagueTeamId)
+    public static KnockoutSide Club(int leagueTeamId)
     {
-        return new DomesticCupSide(leagueTeamId, null, null);
+        return new KnockoutSide(leagueTeamId, null, null);
     }
 
     /// <summary>
@@ -54,8 +54,8 @@ public sealed record DomesticCupSide
     /// <param name="roundNumber">The round of the earlier tie.</param>
     /// <param name="tieNumber">The number of the earlier tie within its round.</param>
     /// <returns>A side holding the winner of that tie.</returns>
-    public static DomesticCupSide WinnerOf(int roundNumber, int tieNumber)
+    public static KnockoutSide WinnerOf(int roundNumber, int tieNumber)
     {
-        return new DomesticCupSide(null, roundNumber, tieNumber);
+        return new KnockoutSide(null, roundNumber, tieNumber);
     }
 }
