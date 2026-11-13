@@ -1,18 +1,18 @@
 using System.Globalization;
 
-namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
+namespace Softela.SoccerManager.Generator.Application.Services.Knockout;
 
 /// <summary>
 /// Works out which ties of a bracket have both of their clubs known.
 /// </summary>
-public static class DomesticCupTieResolver
+public static class KnockoutTieResolver
 {
     private const string WinnersParamName = "winners";
 
     /// <summary>
     /// Lists the ties whose two clubs are known, given the winners decided so far, whether or not the ties have been
-    /// played. With no winners these are the ties of round 1 and the ties of round 2 between two bye clubs; with every
-    /// winner they are all the ties of the bracket.
+    /// played. With no winners these are the ties of round 1 and any later tie whose two sides are both clubs; with
+    /// every winner they are all the ties of the bracket.
     /// </summary>
     /// <param name="bracket">The bracket to read.</param>
     /// <param name="winners">The ties decided so far, with their winners.</param>
@@ -24,26 +24,26 @@ public static class DomesticCupTieResolver
     /// Thrown when a winner names a round or tie the bracket does not have, a tie has more than one winner, a tie has
     /// a winner before both of its clubs are known, or a winner is not one of the clubs of its tie.
     /// </exception>
-    public static IReadOnlyList<DomesticCupKnownTie> KnownTies(
-        DomesticCupBracket bracket,
-        IReadOnlyList<DomesticCupWinner> winners)
+    public static IReadOnlyList<KnockoutKnownTie> KnownTies(
+        KnockoutBracket bracket,
+        IReadOnlyList<KnockoutWinner> winners)
     {
         ArgumentNullException.ThrowIfNull(bracket);
         ArgumentNullException.ThrowIfNull(winners);
 
         Dictionary<(int Round, int Tie), int> winnerOf = IndexWinners(bracket, winners);
-        List<DomesticCupKnownTie> known = new();
+        List<KnockoutKnownTie> known = new();
 
-        foreach (IReadOnlyList<DomesticCupTie> round in bracket.Rounds)
+        foreach (IReadOnlyList<KnockoutTie> round in bracket.Rounds)
         {
-            foreach (DomesticCupTie tie in round)
+            foreach (KnockoutTie tie in round)
             {
                 int? first = ResolveSide(tie.First, winnerOf);
                 int? second = ResolveSide(tie.Second, winnerOf);
 
                 if (first.HasValue && second.HasValue)
                 {
-                    known.Add(new DomesticCupKnownTie(tie.RoundNumber, tie.TieNumber, first.Value, second.Value));
+                    known.Add(new KnockoutKnownTie(tie.RoundNumber, tie.TieNumber, first.Value, second.Value));
                 }
 
                 if (winnerOf.TryGetValue((tie.RoundNumber, tie.TieNumber), out int winnerId))
@@ -66,12 +66,12 @@ public static class DomesticCupTieResolver
     /// Thrown when a winner names a round or tie the bracket does not have, or a tie has more than one winner.
     /// </exception>
     private static Dictionary<(int Round, int Tie), int> IndexWinners(
-        DomesticCupBracket bracket,
-        IReadOnlyList<DomesticCupWinner> winners)
+        KnockoutBracket bracket,
+        IReadOnlyList<KnockoutWinner> winners)
     {
         Dictionary<(int Round, int Tie), int> winnerOf = new();
 
-        foreach (DomesticCupWinner winner in winners)
+        foreach (KnockoutWinner winner in winners)
         {
             if (winner.RoundNumber < 1 || winner.RoundNumber > bracket.Rounds.Count)
             {
@@ -108,7 +108,7 @@ public static class DomesticCupTieResolver
     /// <param name="side">The side to resolve.</param>
     /// <param name="winnerOf">The league team id of the winner, by round and tie.</param>
     /// <returns>The club's league team id, or null when the side is the winner of a tie not yet decided.</returns>
-    private static int? ResolveSide(DomesticCupSide side, Dictionary<(int Round, int Tie), int> winnerOf)
+    private static int? ResolveSide(KnockoutSide side, Dictionary<(int Round, int Tie), int> winnerOf)
     {
         if (side.IsClub)
         {
@@ -133,7 +133,7 @@ public static class DomesticCupTieResolver
     /// <exception cref="ArgumentException">
     /// Thrown when a side is not known, or the winner is neither of the tie's clubs.
     /// </exception>
-    private static void CheckWinner(DomesticCupTie tie, int? first, int? second, int winnerId)
+    private static void CheckWinner(KnockoutTie tie, int? first, int? second, int winnerId)
     {
         int round = tie.RoundNumber;
         int number = tie.TieNumber;

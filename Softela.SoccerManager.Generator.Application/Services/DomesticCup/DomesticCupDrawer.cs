@@ -1,6 +1,7 @@
 using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Core.Randomness;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 
@@ -23,7 +24,7 @@ internal static class DomesticCupDrawer
     /// <exception cref="InvalidOperationException">
     /// Thrown when the draw does not have the calendar's number of rounds, which is a bug.
     /// </exception>
-    public static (DomesticCupBracket Bracket, IReadOnlyList<int> Byes) Draw(
+    public static (KnockoutBracket Bracket, IReadOnlyList<int> Byes) Draw(
         DomesticCupReading reading,
         Dictionary<int, SquadStrength?> strengthOf,
         int roundCount)
@@ -40,7 +41,7 @@ internal static class DomesticCupDrawer
             .ToList();
 
         List<int> byeOrder = new();
-        DomesticCupBracket bracket;
+        KnockoutBracket bracket;
         IReadOnlyList<int> byes;
 
         try

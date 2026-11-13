@@ -1,5 +1,6 @@
 using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
@@ -20,14 +21,14 @@ internal static class DomesticCupProgressReader
     /// <exception cref="SeasonRefusedException">
     /// Thrown when a match is not a tie of the draw, a tie has two matches, or a finished match has no winner.
     /// </exception>
-    public static DomesticCupProgress Read(DomesticCupBracket bracket, List<SeasonMatch> cupMatches, int roundCount)
+    public static DomesticCupProgress Read(KnockoutBracket bracket, List<SeasonMatch> cupMatches, int roundCount)
     {
-        List<DomesticCupWinner> winners = new();
+        List<KnockoutWinner> winners = new();
         List<DomesticCupWrittenTie> written = new();
 
         for (int round = 1; round <= roundCount; round++)
         {
-            List<DomesticCupKnownTie> known = DomesticCupReader.KnownTiesOf(bracket, winners)
+            List<KnockoutKnownTie> known = DomesticCupReader.KnownTiesOf(bracket, winners)
                 .Where(tie => tie.RoundNumber == round)
                 .ToList();
 
@@ -38,7 +39,7 @@ internal static class DomesticCupProgressReader
                 int home = match.HomeLeagueTeamId!.Value;
                 int away = match.AwayLeagueTeamId!.Value;
 
-                DomesticCupKnownTie tie = FindTie(known, match, home, away);
+                KnockoutKnownTie tie = FindTie(known, match, home, away);
 
                 if (matchOfTie.TryGetValue(tie.TieNumber, out SeasonMatch? earlier))
                 {
@@ -54,12 +55,12 @@ internal static class DomesticCupProgressReader
 
                 if (match.IsFinished)
                 {
-                    winners.Add(new DomesticCupWinner(round, tie.TieNumber, WinnerOf(match)));
+                    winners.Add(new KnockoutWinner(round, tie.TieNumber, WinnerOf(match)));
                 }
             }
         }
 
-        List<DomesticCupWinner> orderedWinners = winners
+        List<KnockoutWinner> orderedWinners = winners
             .OrderBy(winner => winner.RoundNumber)
             .ThenBy(winner => winner.TieNumber)
             .ToList();
@@ -83,9 +84,9 @@ internal static class DomesticCupProgressReader
     /// <param name="away">The league team id of the match's away club.</param>
     /// <returns>The tie.</returns>
     /// <exception cref="SeasonRefusedException">Thrown when the match is not a known tie of its round.</exception>
-    private static DomesticCupKnownTie FindTie(List<DomesticCupKnownTie> known, SeasonMatch match, int home, int away)
+    private static KnockoutKnownTie FindTie(List<KnockoutKnownTie> known, SeasonMatch match, int home, int away)
     {
-        DomesticCupKnownTie? tie = known.FirstOrDefault(candidate =>
+        KnockoutKnownTie? tie = known.FirstOrDefault(candidate =>
             (candidate.FirstLeagueTeamId == home && candidate.SecondLeagueTeamId == away)
             || (candidate.FirstLeagueTeamId == away && candidate.SecondLeagueTeamId == home));
 

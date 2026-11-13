@@ -1,3 +1,5 @@
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
+
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 
 /// <summary>
@@ -11,6 +13,6 @@ namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 /// continental cups read it.
 /// </param>
 public sealed record DomesticCupProgress(
-    IReadOnlyList<DomesticCupWinner> Winners,
+    IReadOnlyList<KnockoutWinner> Winners,
     IReadOnlyList<DomesticCupWrittenTie> WrittenTies,
     int? ChampionLeagueTeamId);

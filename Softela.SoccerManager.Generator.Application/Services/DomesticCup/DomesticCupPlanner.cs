@@ -1,6 +1,7 @@
 using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Services.Calendar;
+using Softela.SoccerManager.Generator.Application.Services.Knockout;
 
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 
@@ -145,12 +146,12 @@ public static class DomesticCupPlanner
         }
 
         SeasonCalendar calendar = reading.Calendar ?? throw MissingMember(nameof(reading.Calendar));
-        DomesticCupBracket bracket = reading.Bracket ?? throw MissingMember(nameof(reading.Bracket));
+        KnockoutBracket bracket = reading.Bracket ?? throw MissingMember(nameof(reading.Bracket));
         DomesticCupProgress progress = reading.Progress ?? throw MissingMember(nameof(reading.Progress));
 
         List<DomesticCupPlannedTie> planned = new();
 
-        foreach (DomesticCupKnownTie tie in reading.NewTies)
+        foreach (KnockoutKnownTie tie in reading.NewTies)
         {
             DateTime? after = FeederKickoff(bracket.Rounds[tie.RoundNumber - 1][tie.TieNumber - 1], progress);
 
@@ -198,12 +199,12 @@ public static class DomesticCupPlanner
 
         int roundCount = calendar.DomesticCupRounds.Count;
 
-        (DomesticCupBracket bracket, IReadOnlyList<int> byes) = DomesticCupDrawer.Draw(reading, strengthOf, roundCount);
+        (KnockoutBracket bracket, IReadOnlyList<int> byes) = DomesticCupDrawer.Draw(reading, strengthOf, roundCount);
 
-        IReadOnlyList<DomesticCupKnownTie> known = DomesticCupReader.KnownTiesOf(bracket, []);
+        IReadOnlyList<KnockoutKnownTie> known = DomesticCupReader.KnownTiesOf(bracket, []);
         List<DomesticCupPlannedTie> planned = new();
 
-        foreach (DomesticCupKnownTie tie in known.Where(candidate => candidate.RoundNumber == 1))
+        foreach (KnockoutKnownTie tie in known.Where(candidate => candidate.RoundNumber == 1))
         {
             DateTime? kickoff = PickKickoff(
                 tie,
@@ -221,7 +222,7 @@ public static class DomesticCupPlanner
             planned.Add(ToPlannedTie(tie, kickoff.Value, strengthOf, kickoffsOfClub));
         }
 
-        foreach (DomesticCupKnownTie tie in known.Where(candidate => candidate.RoundNumber == 2))
+        foreach (KnockoutKnownTie tie in known.Where(candidate => candidate.RoundNumber == 2))
         {
             DateTime kickoff = PickKickoff(
                 tie,
@@ -261,11 +262,11 @@ public static class DomesticCupPlanner
     /// <exception cref="InvalidOperationException">
     /// Thrown when a feeder tie has no written match, which is a bug.
     /// </exception>
-    private static DateTime? FeederKickoff(DomesticCupTie tie, DomesticCupProgress progress)
+    private static DateTime? FeederKickoff(KnockoutTie tie, DomesticCupProgress progress)
     {
         DateTime? latest = null;
 
-        foreach (DomesticCupSide side in new[] { tie.First, tie.Second })
+        foreach (KnockoutSide side in new[] { tie.First, tie.Second })
         {
             if (side.IsClub)
             {
@@ -299,7 +300,7 @@ public static class DomesticCupPlanner
     /// <param name="kickoffsOfClub">The kickoffs of each club's matches.</param>
     /// <returns>The date, or null when none fits.</returns>
     private static DateTime? PickKickoff(
-        DomesticCupKnownTie tie,
+        KnockoutKnownTie tie,
         DateTime planned,
         DateTime? after,
         DateTime? before,
@@ -332,7 +333,7 @@ public static class DomesticCupPlanner
     /// Thrown when a strength is missing or the library refuses the clubs.
     /// </exception>
     private static DomesticCupPlannedTie ToPlannedTie(
-        DomesticCupKnownTie tie,
+        KnockoutKnownTie tie,
         DateTime kickoff,
         Dictionary<int, SquadStrength?> strengthOf,
         Dictionary<int, List<DateTime>> kickoffsOfClub)
@@ -364,7 +365,7 @@ public static class DomesticCupPlanner
     /// </summary>
     /// <param name="tie">The tie that has no date.</param>
     /// <returns>The refusal, ready to throw.</returns>
-    private static SeasonRefusedException NoDate(DomesticCupKnownTie tie)
+    private static SeasonRefusedException NoDate(KnockoutKnownTie tie)
     {
         return new SeasonRefusedException(
             string.Create(
