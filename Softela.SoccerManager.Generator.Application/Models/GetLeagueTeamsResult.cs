@@ -15,4 +15,10 @@ public sealed class GetLeagueTeamsResult
     /// The identifier of the club's row in <c>dbo.Teams</c>.
     /// </summary>
     public int TeamId { get; set; }
+
+    /// <summary>
+    /// Whether the roster entry is a guest: on the league's roster but never in a division. The backend's
+    /// <c>dbo.GetLeagueTeams</c> returns it since V1_0_0_65, and Dapper maps it by name.
+    /// </summary>
+    public bool IsGuest { get; set; }
 }

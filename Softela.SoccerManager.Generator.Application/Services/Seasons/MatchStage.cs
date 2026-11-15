@@ -10,4 +10,10 @@ internal enum MatchStage : byte
     /// A round of a domestic cup: a single match, and the match's round number says which round it is.
     /// </summary>
     DomesticCupRound = 1,
+
+    /// <summary>
+    /// A match of a continental cup's league phase: a single match, its round number is the matchday and its leg is
+    /// null. The value is the backend's <c>MatchStage.ContinentalLeaguePhase</c>.
+    /// </summary>
+    ContinentalLeaguePhase = 4,
 }
