@@ -13,7 +13,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// </param>
 /// <param name="Competitions">
 /// Every competition of the league as read at the start of the tick: its divisions, its cups and any other, in no
-/// particular order. The domestic cup step finds the cup among them.
+/// particular order. The domestic cup step finds the cup among them, and the continental cup step finds its two.
 /// </param>
 /// <param name="Teams">Every team, as read at the start of the tick.</param>
 /// <param name="LeagueMatches">

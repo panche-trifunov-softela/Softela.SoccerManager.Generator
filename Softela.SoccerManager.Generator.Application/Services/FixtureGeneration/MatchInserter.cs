@@ -10,12 +10,6 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// </summary>
 internal sealed class MatchInserter
 {
-    /// <summary>
-    /// The user that every row the generator writes is created and modified by. No user table holds it; the backend's
-    /// importer stamps its own rows with the id that ends in 1.
-    /// </summary>
-    private static readonly Guid GeneratorUserId = new("00000000-0000-0000-0000-000000000002");
-
     private readonly IMatchRepository _matchRepository;
     private readonly IMatchTeamStatisticRepository _matchTeamStatisticRepository;
 
@@ -58,8 +52,8 @@ internal sealed class MatchInserter
                     isStarted: false,
                     createdAt: runTime,
                     modifiedAt: runTime,
-                    createdBy: GeneratorUserId,
-                    modifiedBy: GeneratorUserId);
+                    createdBy: GeneratorAudit.UserId,
+                    modifiedBy: GeneratorAudit.UserId);
 
                 await InsertStatisticAsync(fixture.HomeClubId, matchId, true, runTime);
                 await InsertStatisticAsync(fixture.AwayClubId, matchId, false, runTime);
@@ -96,8 +90,8 @@ internal sealed class MatchInserter
                 leg: match.Leg,
                 createdAt: runTime,
                 modifiedAt: runTime,
-                createdBy: GeneratorUserId,
-                modifiedBy: GeneratorUserId);
+                createdBy: GeneratorAudit.UserId,
+                modifiedBy: GeneratorAudit.UserId);
 
             await InsertStatisticAsync(match.HomeLeagueTeamId, matchId, true, runTime);
             await InsertStatisticAsync(match.AwayLeagueTeamId, matchId, false, runTime);
@@ -123,7 +117,7 @@ internal sealed class MatchInserter
             possession: 0,
             createdAt: runTime,
             modifiedAt: runTime,
-            createdBy: GeneratorUserId,
-            modifiedBy: GeneratorUserId);
+            createdBy: GeneratorAudit.UserId,
+            modifiedBy: GeneratorAudit.UserId);
     }
 }
