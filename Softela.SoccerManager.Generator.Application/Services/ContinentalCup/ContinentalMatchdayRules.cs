@@ -99,6 +99,34 @@ internal static class ContinentalMatchdayRules
     }
 
     /// <summary>
+    /// Finds the size of the cup that has a given number of matchdays, the inverse of <see cref="MatchdayCount"/>. The
+    /// calendar's number of league-phase dates tells the cup's size, so neither continental step has to guess it.
+    /// </summary>
+    /// <param name="matchdayCount">The number of matchdays of the cup.</param>
+    /// <param name="clubCount">The number of clubs, or 0 when no cup has that many matchdays.</param>
+    /// <returns>True for 6 matchdays (16 clubs) and 8 matchdays (32 clubs); false for any other count.</returns>
+    internal static bool TryGetCupSize(int matchdayCount, out int clubCount)
+    {
+        if (matchdayCount == MatchdayCount(ContinentalInputValidator.SmallCupClubCount))
+        {
+            clubCount = ContinentalInputValidator.SmallCupClubCount;
+
+            return true;
+        }
+
+        if (matchdayCount == MatchdayCount(ContinentalInputValidator.LargeCupClubCount))
+        {
+            clubCount = ContinentalInputValidator.LargeCupClubCount;
+
+            return true;
+        }
+
+        clubCount = 0;
+
+        return false;
+    }
+
+    /// <summary>
     /// Says whether the lower pot of a pot pair is at home in a matching.
     /// </summary>
     /// <param name="flags">The arrangement's flags; bit i belongs to the pot pair with index i.</param>

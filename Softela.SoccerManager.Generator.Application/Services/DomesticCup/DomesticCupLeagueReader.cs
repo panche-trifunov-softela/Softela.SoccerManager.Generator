@@ -12,6 +12,24 @@ namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 internal static class DomesticCupLeagueReader
 {
     /// <summary>
+    /// Picks the league matches out of the season: the matches with no stage that belong to a division of the league,
+    /// in kickoff order.
+    /// </summary>
+    /// <param name="season">The season's matches with their scores.</param>
+    /// <param name="divisionIds">The competition ids of the league's divisions.</param>
+    /// <returns>The league matches, in kickoff order and then id order.</returns>
+    public static List<SeasonMatch> LeagueMatchesOf(IReadOnlyList<SeasonMatch> season, IReadOnlyList<int> divisionIds)
+    {
+        HashSet<int> divisionSet = new(divisionIds);
+
+        return season
+            .Where(match => match.Stage is null && match.CompetitionId is { } id && divisionSet.Contains(id))
+            .OrderBy(match => match.Kickoff)
+            .ThenBy(match => match.Id)
+            .ToList();
+    }
+
+    /// <summary>
     /// Finds the division of every club that plays a league match.
     /// </summary>
     /// <param name="leagueMatches">The league matches, in kickoff order.</param>

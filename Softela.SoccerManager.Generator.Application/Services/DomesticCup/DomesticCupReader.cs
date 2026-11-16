@@ -73,13 +73,7 @@ public static class DomesticCupReader
 
         CheckDivisionIds(cupCompetitionId, divisionIdsInOrder);
 
-        HashSet<int> divisionSet = new(divisionIdsInOrder);
-
-        List<SeasonMatch> leagueMatches = seasonMatches
-            .Where(match => match.Stage is null && match.CompetitionId is { } id && divisionSet.Contains(id))
-            .OrderBy(match => match.Kickoff)
-            .ThenBy(match => match.Id)
-            .ToList();
+        List<SeasonMatch> leagueMatches = DomesticCupLeagueReader.LeagueMatchesOf(seasonMatches, divisionIdsInOrder);
 
         if (leagueMatches.Count == 0)
         {
