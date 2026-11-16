@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Models;
 using Softela.SoccerManager.Generator.Application.Repositories;
+using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
 
@@ -12,17 +13,6 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// </summary>
 internal sealed class LeagueMatchesStep : ILeagueStep
 {
-    /// <summary>
-    /// How long Standings must have been unchanged before a season is written, so that a person still setting the
-    /// season up is not overtaken. This is the hour rule.
-    /// </summary>
-    private static readonly TimeSpan StandingsSettleTime = TimeSpan.FromHours(1);
-
-    /// <summary>
-    /// The format of the time of the newest Standings change in a log line.
-    /// </summary>
-    private const string StandingsChangedAtFormat = "yyyy-MM-dd HH:mm:ss";
-
     /// <summary>
     /// The start of every log line about the league's season.
     /// </summary>
@@ -114,7 +104,7 @@ internal sealed class LeagueMatchesStep : ILeagueStep
 
         DateTime newestChange = standingsByDivision.Values.SelectMany(rows => rows).Max(row => row.ModifiedAt);
 
-        if (runTime - newestChange < StandingsSettleTime)
+        if (!StandingsSettleRule.IsSettled(runTime, newestChange))
         {
             _logger.LogInformation(
                 LogPrefix + ": its newest Standings change, {StandingsChangedAt} UTC, is under an hour old, "
@@ -123,7 +113,7 @@ internal sealed class LeagueMatchesStep : ILeagueStep
                 league.Id,
                 season.SeasonNumber,
                 season.Id,
-                newestChange.ToString(StandingsChangedAtFormat, CultureInfo.InvariantCulture));
+                newestChange.ToString(StandingsSettleRule.ChangedAtFormat, CultureInfo.InvariantCulture));
 
             return;
         }

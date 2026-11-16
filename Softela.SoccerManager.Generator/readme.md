@@ -12,15 +12,16 @@ The continental cup step, which writes the league phase, needs backend `V1_0_0_6
 and the new read `dbo.GetLeagueSquadRatings`, and it writes standings rows through `dbo.InsertStanding`. Deploy the
 backend first: without the procedure the step refuses with a log line, and tries again at the next tick. The
 continental knockout step needs nothing more than the domestic cup step does: it writes its matches through
-`dbo.InsertStagedMatch`, with stages 5 to 9 and no round number.
+`dbo.InsertStagedMatch`, with stages 5 to 9 and no round number. The promotion playoff step needs the same, with
+stages 2 and 3, and no round number and no leg.
 
 ## GenerateLeagueFixtures
 
 A timer function with the schedule `0 0 */6 * * *`: every six hours, at 00:00, 06:00, 12:00 and 18:00 host time.
 
 For each league, in id order, it takes the newest season (the highest SeasonNumber) and its divisions (the competitions
-with an Order above 0), and runs four steps for it, one after the other: the league matches step, then the domestic
-cup step, then the continental cup step, and then the continental knockout step.
+with an Order above 0), and runs five steps for it, one after the other: the league matches step, then the domestic
+cup step, then the continental cup step, then the continental knockout step, and then the promotion playoff step.
 
 The league matches step writes every league match of the season (two legs, on Thursdays and Sundays at 20:00 UTC,
 from the first Thursday after the day of the run that is at least 24 hours after the league's latest match) plus
@@ -41,6 +42,8 @@ It refuses a league, which is logged as an error and tried again at every tick, 
 - a Standings row is for a club that is off the league's roster or whose team row is missing, or a club is in two
   divisions;
 - the divisions are not 1 to 5 divisions of an equal, even number of 10 to 20 clubs;
+- the divisions' promotion, relegation or playoff settings contradict each other or their clubs, with or without
+  playoffs (see "Promotion playoffs");
 - three clubs are on one stadium, or more than half of a division's clubs share a stadium with another club;
 - the first match would be more than 365 days away, because an existing match is that far ahead.
 
@@ -134,16 +137,16 @@ It refuses the cups, which is logged as an error and tried again at every tick, 
 
 A guest in a continental cup has a standings row, so it cannot be deleted from the league.
 
-A failed write, of league matches, of cup ties, of continental cups or of their knockouts, rolls that write back and
-fails the run, so the host reports it.
+A failed write, of league matches, of cup ties, of continental cups, of their knockouts or of promotion playoffs, rolls
+that write back and fails the run, so the host reports it.
 Everything written before it stays written, and the next tick starts over from the first league.
 
 ## Continental knockouts
 
-The continental knockout step runs last. It does nothing until both continental cups have a match of the season: on
-the tick that writes the league phase it finds nothing yet, and nothing can be finished by then anyway. From then on
-it reads the season again inside its own lock at every tick, so it sees every result entered up to that moment. Each
-cup is handled on its own, cup 1 first.
+The continental knockout step runs after the continental cup step, which writes the league phase. It does nothing until
+both continental cups have a match of the season: on the tick that writes the league phase it finds nothing yet, and
+nothing can be finished by then anyway. From then on it reads the season again inside its own lock at every tick, so it
+sees every result entered up to that moment. Each cup is handled on its own, cup 1 first.
 
 A cup's knockout starts once all of its league-phase matches are finished: 48 matches for a cup of 16 clubs, 128 for a
 cup of 32. Until then the step logs one information line a tick for the cup: "waits for its league phase: n of 48
@@ -224,6 +227,145 @@ Its log lines each start with the league and the season, and are:
 - error, "the continental knockouts are refused: ... The next tick tries again", for both cups;
 - information, "another run holds this season's lock, so this run leaves the continental knockouts to it".
 
+## Promotion playoffs
+
+The promotion playoff step runs last. It acts on a division whose `TeamsInPlayoffs` is above 0 and that has a match of
+the season; a League with no such division is left alone, and the step then does nothing and logs nothing. From then on
+it reads the season again inside its own lock at every tick, so it sees every result entered up to that moment. Each
+division with a playoff is handled on its own, the top division first.
+
+The places of a division's table come from its settings, with P = `TeamsPromoted`, Q = `TeamsInPlayoffs` and
+R = `TeamsRelegated`:
+
+- places 1 to P - 1 go up, or 1 to P when Q is 0;
+- places P to P + Q - 1 play off for the last promotion place;
+- the bottom R places go down.
+
+The settings must fit, and the league matches step refuses a league that breaks one of these before it writes a
+season, with or without playoffs. The playoff step checks them again at every tick and refuses every division. A
+division is refused at the first rule it breaks:
+
+- `TeamsPromoted` or `TeamsRelegated` is negative;
+- `TeamsInPlayoffs` is not 0, 2 or 4;
+- `TeamsInPlayoffs` is above 0 and `TeamsPromoted` is below 2, so no place is left for an automatic promotion;
+- the top division has `TeamsPromoted` or `TeamsInPlayoffs` above 0;
+- the bottom division has `TeamsRelegated` above 0 (a league of one division is both, so all three are 0);
+- a division relegates another number of clubs than the division below it promotes;
+- the places need more clubs than the division has: P + R without a playoff, P - 1 + Q + R with one.
+
+A division's playoff starts once all of its league matches are finished and its Standings have not changed for an hour,
+measured from the newest ModifiedAt of its rows. Until then the step logs one information line a tick for the division:
+"waits for its league matches: n of m are finished", or "waits: its newest Standings change, ..., is under an hour old".
+
+The table is ranked from the division's league matches at every tick, so it is never stored: points, then goal
+difference, then goals scored, then head-to-head and then the seeded shuffle, as in the continental knockouts. The
+Generator's order wins over an API table that lists level clubs another way. The Standings must agree with the results,
+or the division is refused. The checks run in this order:
+
+- the division has as many league matches as its Standings clubs play (each club hosts each other club once);
+- every club of a league match has a Standings row;
+- every club hosted every other club exactly once;
+- each club's wins, draws and losses add up to the matches it played, which also means no playoff match is counted in
+  them;
+- each club's goals for and against equal the sums over its league matches.
+
+Until the events generator exists, the results and the Standings of a division with a playoff are kept by hand. Playoff
+matches never count in the Standings, and a drawn playoff match always has a shootout.
+
+Who plays, where the table has P as the first playoff place:
+
+- Q = 4: semi-final 1 is place P v place P + 3, and semi-final 2 is place P + 1 v place P + 2, the higher place at
+  home; the final is between the two winners, at home for the winner with the better place;
+- Q = 2: only a final, place P at home v place P + 1;
+- one stadium does not host both semi-finals: when the home club of semi-final 2 shares a stadium with the home club of
+  semi-final 1, semi-final 2 swaps its hosts. This is the only swap, and a club with no stadium counts as having none.
+
+A semi-final is written once the table is known. The final is written once both semi-finals are decided. Every match is
+a single match with these values:
+
+- Stage 2 for a semi-final and 3 for the final;
+- RoundNumber and Leg are empty;
+- two MatchTeamStatistics rows at zero, one for each side;
+- no Standings rows.
+
+The step finds a written match again by its stage and its pair of clubs, whichever club hosts it.
+
+A match is at 20:00 UTC on a Tuesday, a Thursday or a Sunday. The semi-finals, or the final of a 2-club playoff, are on
+the Tuesday after the last league round, and the final is on the next Tuesday, Thursday or Sunday after the day of the
+later semi-final. A match is at least 24 hours after the tick and at least 24 hours from every other match of both clubs
+this season, otherwise it is on the next of those days that is. From 12 clubs per division a league has a World Cup, and
+no playoff match is dated on or after the first day of the World Cup finals. Those finals start on the Monday eight days
+after the last league round, so only the Tuesday, the Thursday and the Sunday between them are left: the semi-finals
+take the Tuesday, the final the Thursday, and the Sunday is the one spare day. Semi-finals that move to the Thursday,
+because a club has another match within 24 hours or the Standings settled too late for a tick 24 hours before the
+Tuesday, push the final to the Sunday; semi-finals on the Sunday leave the final no date. A match that no date fits
+before then is named in the error line, and it can be inserted by hand: a match with Stage 2 or 3 on the division's
+competition, RoundNumber and Leg empty, and both MatchTeamStatistics rows, the home club at home. The next tick accepts
+it when its clubs fit the table.
+
+A playoff match is decided by its goals, and then by its shootout. The shootout counts only when both of its values are
+entered and differ. Enter a match's goals first and set `IsFinished` last: a finished match with no goals recorded
+reads 0-0. The winner of the final is the club the playoff promotes; the step reads it and writes nothing for it.
+
+It skips a division, and tries again at the next tick, when:
+
+- its league matches are not all finished: the information line above;
+- its Standings changed under an hour ago: the information line above;
+- no match has become known since the last tick: it logs that the division has no new match, with the number of matches
+  written and decided;
+- another run holds the season's lock.
+
+It refuses a division, which is logged as an error and tried again at every tick, when:
+
+- a league match is unfinished while the playoff is written: finish it again, or delete the division's playoff matches;
+- a playoff match has no home or no away club, or has a round number or a leg, or is a semi-final of a 2-club playoff:
+  delete it;
+- the playoff has two finals, or more than two semi-final matches, or a semi-final has two matches: delete the extra
+  ones;
+- the Standings disagree with the league matches, one check above: fix the Standings row, or reset the season;
+- the table cannot be ranked, or has fewer clubs than the playoff spans: fix the settings, or reset the season;
+- a playoff match is not a tie of the table as it stands, because a result or a setting changed after it was written:
+  put back the result or setting that changed, or delete the division's playoff matches;
+- a finished playoff match is level and has no shootout: fix its result;
+- the final is written while a semi-final is not written or has no winner, or the final is not between the semi-final
+  winners: finish the semi-final again, or delete the final and it is written again;
+- no Tuesday, Thursday or Sunday within a year fits a match, or none before the World Cup finals fits it at least 24
+  hours from both clubs' other matches: move the matches of either club that are in the way;
+- a match is too late for the World Cup finals: insert it by hand, as above.
+
+A refused division writes nothing on that tick, and the other divisions carry on. These refusals are for the whole step,
+and every division is refused: the settings above; the season has no league matches but its divisions have playoff
+matches (delete them); a division has no clubs, a club plays in two divisions or a league match lacks a club; the league
+matches are not on the matchdays of their calendar, because one was moved by hand or made by hand (move it back, or
+reset the season).
+
+Its log lines each start with the league and the season, and are:
+
+- information, "the promotion playoff of ... waits for its league matches: n of m are finished";
+- information, "the promotion playoff of ... waits: its newest Standings change, ... UTC, is under an hour old";
+- information, "the promotion playoff of ... has no new match: n are written and n decided";
+- information, "wrote promotion playoff matches of ..., n in all: semi-finals 3 v 6 and 4 v 5 (2 matches)", "semi-final
+  4 v 5 (1 match)" when one semi-final is written again, or "final 3 v 4 (1 match)", with table places and the home club
+  first;
+- error, "the promotion playoff of ... is refused: ... The next tick tries again";
+- error, "the promotion playoffs are refused: ... The next tick tries again", for every division;
+- information, "another run holds this season's lock, so this run leaves the promotion playoffs to it".
+
+To write one division's playoff again, delete its playoff matches. The next tick writes them again from the current
+table:
+
+```sql
+DELETE FROM dbo.Matches WHERE SeasonId = <season id> AND CompetitionId = <division id> AND Stage IN (2, 3);
+```
+
+To write every division's playoff again:
+
+```sql
+DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.CompetitionId WHERE m.SeasonId = <season id> AND c.[Order] > 0 AND m.Stage IN (2, 3);
+```
+
+The deletes cascade to each match's statistics rows, as the resets in "Writing a season again" do.
+
 ## Running it locally
 
 The host needs Azurite for `AzureWebJobsStorage` (`UseDevelopmentStorage=true`) and these settings:
@@ -269,6 +411,8 @@ DELETE FROM dbo.Matches WHERE SeasonId = <season id> AND CompetitionId = <domest
 ```
 
 The deletes cascade to each match's statistics, tactics, lineups, substitutions, player statistics and shootout kicks.
+The season reset above already deletes the promotion playoff matches, because they are matches of the divisions; the
+resets that keep the league matches are in "Promotion playoffs".
 
 To write the continental cups again, find their ids by shape. Cup 1 is the lower id:
 

@@ -11,8 +11,8 @@ public static class BuilderExtensions
     /// <summary>
     /// Adds the fixture generator's services. They are scoped, so each function run gets its own instances, and they
     /// share that run's unit of work and repositories. The steps of a league's season run in the order they are
-    /// registered here: the league matches, the domestic cup, the continental cups' league phase and then their
-    /// knockouts.
+    /// registered here: the league matches, the domestic cup, the continental cups' league phase, then their
+    /// knockouts and then the promotion playoffs.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
     /// <returns>The same service collection, for chaining.</returns>
@@ -25,7 +25,8 @@ public static class BuilderExtensions
             .AddScoped<ILeagueStep, LeagueMatchesStep>()
             .AddScoped<ILeagueStep, DomesticCupStep>()
             .AddScoped<ILeagueStep, ContinentalCupStep>()
-            .AddScoped<ILeagueStep, ContinentalKnockoutStep>();
+            .AddScoped<ILeagueStep, ContinentalKnockoutStep>()
+            .AddScoped<ILeagueStep, PlayoffStep>();
 
         return services;
     }

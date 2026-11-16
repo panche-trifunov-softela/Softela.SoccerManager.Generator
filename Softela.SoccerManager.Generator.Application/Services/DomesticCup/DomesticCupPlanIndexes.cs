@@ -68,6 +68,41 @@ internal static class DomesticCupPlanIndexes
     }
 
     /// <summary>
+    /// Gathers the kickoffs of every match of two clubs.
+    /// </summary>
+    /// <param name="kickoffsOfClub">The kickoffs of each club's matches.</param>
+    /// <param name="firstLeagueTeamId">The league team id of the first club.</param>
+    /// <param name="secondLeagueTeamId">The league team id of the second club.</param>
+    /// <returns>The first club's kickoffs and then the second club's; a club with no match adds nothing.</returns>
+    public static List<DateTime> KickoffsOf(
+        Dictionary<int, List<DateTime>> kickoffsOfClub,
+        int firstLeagueTeamId,
+        int secondLeagueTeamId)
+    {
+        List<DateTime> gathered = new();
+
+        foreach (int clubId in new[] { firstLeagueTeamId, secondLeagueTeamId })
+        {
+            if (kickoffsOfClub.TryGetValue(clubId, out List<DateTime>? kickoffs))
+            {
+                gathered.AddRange(kickoffs);
+            }
+        }
+
+        return gathered;
+    }
+
+    /// <summary>
+    /// Copies the kickoffs of every club, so the copy can grow without changing the original.
+    /// </summary>
+    /// <param name="kickoffsOfClub">The kickoffs of each club's matches, by league team id.</param>
+    /// <returns>A copy with its own list for each club.</returns>
+    public static Dictionary<int, List<DateTime>> CopyKickoffs(Dictionary<int, List<DateTime>> kickoffsOfClub)
+    {
+        return kickoffsOfClub.ToDictionary(pair => pair.Key, pair => new List<DateTime>(pair.Value));
+    }
+
+    /// <summary>
     /// Looks up the squad strength of a club.
     /// </summary>
     /// <param name="strengthOf">The squad strength by league team id; a duplicated club holds null.</param>

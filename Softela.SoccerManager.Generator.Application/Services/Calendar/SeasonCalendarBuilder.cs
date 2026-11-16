@@ -20,8 +20,9 @@ public static class SeasonCalendarBuilder
     /// <description>
     /// League rounds are on Thursdays and Sundays and domestic cup rounds on Tuesdays. From 12 clubs per division,
     /// continental dates are on Mondays and World Cup qualifier matchdays on Fridays; the continental final is the last
-    /// club date, and the World Cup finals matchdays are on consecutive days that start 7 days after it. Below 12 clubs
-    /// there are no continental, qualifier or World Cup finals dates.
+    /// date the calendar holds, and the World Cup finals matchdays are on consecutive days that start 7 days after it,
+    /// so the promotion playoffs fall in the days before them. Below 12 clubs there are no continental, qualifier or
+    /// World Cup finals dates.
     /// </description>
     /// </item>
     /// <item>
@@ -121,8 +122,8 @@ public static class SeasonCalendarBuilder
             .Select(week => KickoffOf(firstThursday, week, CalendarTemplate.FridayOffset))
             .ToList();
 
-        // Only a league with continental cups gets here. Its continental final is the last club date, so the World Cup
-        // finals are counted from it.
+        // Only a league with continental cups gets here. Its continental final is the last date the calendar holds, so
+        // the World Cup finals are counted from it; the promotion playoffs fall in the days before them.
         DateOnly lastClubDate = DateOnly.FromDateTime(continentalCups.Final);
         DateOnly worldCupFinalsStart = lastClubDate.AddDays(CalendarTemplate.DaysFromLastClubDateToWorldCupFinals);
 

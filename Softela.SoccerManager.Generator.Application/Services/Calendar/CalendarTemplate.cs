@@ -1,10 +1,13 @@
+using System.Collections.Frozen;
+
 namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
 /// The rules a season's layout is computed from. A week runs from Thursday to Wednesday, and weeks are numbered from 1.
 /// The league plays on Thursday and Sunday and the domestic cup on Tuesday. A league whose divisions have 12 clubs or
 /// more also plays the World Cup qualifiers on Friday and the continental cups on Monday, and then the World Cup
-/// finals. In the club season, Wednesday and Saturday stay free; the World Cup finals use every day.
+/// finals. The promotion playoffs are not in the calendar; they are dated on Tuesday, Thursday or Sunday after the last
+/// league round. In the club season, Wednesday and Saturday stay free; the World Cup finals use every day.
 /// </summary>
 internal static class CalendarTemplate
 {
@@ -48,9 +51,25 @@ internal static class CalendarTemplate
     public const int FirstQualifierWeek = 3;
     public const int WeeksFromLastQualifierToLastWeek = 2;
 
+    /// <summary>
+    /// The days from the continental final, the last club date the calendar holds, to the first World Cup finals
+    /// matchday. The promotion playoffs, which the calendar does not hold, fall between the last league round and the
+    /// World Cup finals.
+    /// </summary>
     public const int DaysFromLastClubDateToWorldCupFinals = 7;
     public const int WorldCupFinalsMatchdayCount = 8;
     public const int DaysBetweenWorldCupFinalsMatchdays = 1;
+
+    /// <summary>
+    /// The weekdays a promotion playoff match may be played on: Tuesday, Thursday and Sunday, the days of the domestic
+    /// cup and of the league.
+    /// </summary>
+    public static readonly IReadOnlySet<DayOfWeek> PlayoffMatchDays = new HashSet<DayOfWeek>
+    {
+        DayOfWeek.Tuesday,
+        DayOfWeek.Thursday,
+        DayOfWeek.Sunday,
+    }.ToFrozenSet();
 
     /// <summary>
     /// Tells whether a league plays international competitions: the continental cups, the World Cup qualifiers and the

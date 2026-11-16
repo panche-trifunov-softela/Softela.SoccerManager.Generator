@@ -15,4 +15,34 @@ public sealed class GetStandingsResult
     /// The UTC date and time the row was last written. It equals the creation time until the row is edited.
     /// </summary>
     public DateTime ModifiedAt { get; set; }
+
+    /// <summary>
+    /// The points the club has in the standing.
+    /// </summary>
+    public int Points { get; set; }
+
+    /// <summary>
+    /// The goals the club has scored in the standing.
+    /// </summary>
+    public int GoalsFor { get; set; }
+
+    /// <summary>
+    /// The goals the club has conceded in the standing.
+    /// </summary>
+    public int GoalsAgainst { get; set; }
+
+    /// <summary>
+    /// The matches the club has won in the standing.
+    /// </summary>
+    public int Wins { get; set; }
+
+    /// <summary>
+    /// The matches the club has drawn in the standing.
+    /// </summary>
+    public int Draws { get; set; }
+
+    /// <summary>
+    /// The matches the club has lost in the standing.
+    /// </summary>
+    public int Losses { get; set; }
 }

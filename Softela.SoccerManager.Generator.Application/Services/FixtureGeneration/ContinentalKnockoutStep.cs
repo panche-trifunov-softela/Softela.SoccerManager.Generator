@@ -188,7 +188,7 @@ internal sealed class ContinentalKnockoutStep : ILeagueStep
             }
 
             // A copy, so a cup that is refused part way leaves the other cup's dates as they were.
-            Dictionary<int, List<DateTime>> cupKickoffs = CopyKickoffs(kickoffs);
+            Dictionary<int, List<DateTime>> cupKickoffs = DomesticCupPlanIndexes.CopyKickoffs(kickoffs);
 
             try
             {
@@ -261,16 +261,6 @@ internal sealed class ContinentalKnockoutStep : ILeagueStep
         }
 
         return new CupPlan(cup, legs);
-    }
-
-    /// <summary>
-    /// Copies the kickoffs of every club, so the copy can grow without changing the original.
-    /// </summary>
-    /// <param name="kickoffs">The kickoffs of each club's matches, by league team id.</param>
-    /// <returns>A copy with its own list for each club.</returns>
-    private static Dictionary<int, List<DateTime>> CopyKickoffs(Dictionary<int, List<DateTime>> kickoffs)
-    {
-        return kickoffs.ToDictionary(pair => pair.Key, pair => new List<DateTime>(pair.Value));
     }
 
     /// <summary>

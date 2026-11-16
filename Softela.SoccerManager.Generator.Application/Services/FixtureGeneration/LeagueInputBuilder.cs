@@ -3,6 +3,7 @@ using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Core.Randomness;
 using Softela.SoccerManager.Generator.Application.Models;
 using Softela.SoccerManager.Generator.Application.Services.Calendar;
+using Softela.SoccerManager.Generator.Application.Services.Playoffs;
 using Softela.SoccerManager.Generator.Application.Services.RoundRobin;
 
 namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration;
@@ -110,6 +111,11 @@ internal static class LeagueInputBuilder
     /// <item><description>a Standings row is for a club that is off the roster or has no team;</description></item>
     /// <item><description>a club has Standings rows in two divisions;</description></item>
     /// <item><description>the divisions' shape cannot be laid out;</description></item>
+    /// <item>
+    /// <description>
+    /// the divisions' promotion, relegation or playoff settings contradict each other or their clubs;
+    /// </description>
+    /// </item>
     /// <item><description>too many clubs share stadiums;</description></item>
     /// <item><description>the first match would be more than 365 days after the run.</description></item>
     /// </list>
@@ -142,6 +148,9 @@ internal static class LeagueInputBuilder
         List<int> clubCounts = leagueDivisions.Select(division => division.LeagueTeamIds.Count).ToList();
 
         CheckShape(clubCounts, leagueDivisions);
+
+        // The playoffs read these settings later, so a season whose settings contradict each other is not written.
+        PromotionSettings.Check(divisions, clubCounts);
 
         IReadOnlyList<SharedStadiumPair> pairs = SharedStadiumFinder.Find(leagueDivisions, teamOfClub);
 
