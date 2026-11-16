@@ -36,4 +36,22 @@ public sealed class GetCompetitionsResult
     /// how a youth cup differs from the domestic cup.
     /// </summary>
     public int? MaxAgeAllowed { get; set; }
+
+    /// <summary>
+    /// The number of clubs that go up from this division at the end of a season; 0 for a competition that is not a
+    /// division.
+    /// </summary>
+    public int TeamsPromoted { get; set; }
+
+    /// <summary>
+    /// The number of clubs that go down from this division at the end of a season; 0 for a competition that is not a
+    /// division.
+    /// </summary>
+    public int TeamsRelegated { get; set; }
+
+    /// <summary>
+    /// The number of clubs that play this division's promotion playoff; 0 when it has none, and 0 for a competition
+    /// that is not a division.
+    /// </summary>
+    public int TeamsInPlayoffs { get; set; }
 }

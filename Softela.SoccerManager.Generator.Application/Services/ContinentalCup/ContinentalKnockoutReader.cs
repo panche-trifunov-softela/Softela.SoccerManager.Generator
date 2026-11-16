@@ -276,13 +276,7 @@ public static class ContinentalKnockoutReader
             .Order()
             .ToList();
 
-        List<TableMatch> matches = leaguePhase
-            .Select(match => new TableMatch(
-                match.HomeLeagueTeamId!.Value,
-                match.AwayLeagueTeamId!.Value,
-                match.HomeGoals,
-                match.AwayGoals))
-            .ToList();
+        List<TableMatch> matches = SeasonTableMatches.Of(leaguePhase);
 
         try
         {

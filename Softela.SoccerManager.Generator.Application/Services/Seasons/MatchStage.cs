@@ -12,6 +12,18 @@ internal enum MatchStage : byte
     DomesticCupRound = 1,
 
     /// <summary>
+    /// A semi-final of a division's promotion playoff: a single match, its round number and its leg are null. The value
+    /// is the backend's <c>MatchStage.PromotionPlayoffSemiFinal</c>.
+    /// </summary>
+    PromotionPlayoffSemiFinal = 2,
+
+    /// <summary>
+    /// The final of a division's promotion playoff: a single match, its round number and its leg are null. The value is
+    /// the backend's <c>MatchStage.PromotionPlayoffFinal</c>.
+    /// </summary>
+    PromotionPlayoffFinal = 3,
+
+    /// <summary>
     /// A match of a continental cup's league phase: a single match, its round number is the matchday and its leg is
     /// null. The value is the backend's <c>MatchStage.ContinentalLeaguePhase</c>.
     /// </summary>

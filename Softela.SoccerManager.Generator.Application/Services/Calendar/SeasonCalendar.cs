@@ -22,8 +22,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 /// divisions have fewer than 12 clubs.
 /// </param>
 /// <param name="WorldCupFinalsMatchdays">
-/// The kickoffs of the World Cup finals matchdays, in UTC, earliest first; all of them are after the last club date. An
-/// empty list, never null, when the divisions have fewer than 12 clubs.
+/// The kickoffs of the World Cup finals matchdays, in UTC, earliest first; all of them are after the last date the
+/// calendar holds, and the promotion playoffs fall in the days before them. An empty list, never null, when the
+/// divisions have fewer than 12 clubs.
 /// </param>
 public sealed record SeasonCalendar(
     DateOnly StartDate,

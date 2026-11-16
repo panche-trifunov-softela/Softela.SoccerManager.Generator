@@ -159,8 +159,12 @@ public static class ContinentalKnockoutPlanner
         ContinentalKnownTie tie,
         Dictionary<int, List<DateTime>> clubKickoffs)
     {
-        DateTime kickoff = MatchDateRule.Pick(dates.Final, runTime, after, null, KickoffsOf(clubKickoffs, tie))
-            ?? throw NoDate(tie);
+        List<DateTime> kickoffs = DomesticCupPlanIndexes.KickoffsOf(
+            clubKickoffs,
+            tie.HostLeagueTeamId,
+            tie.OtherLeagueTeamId);
+
+        DateTime kickoff = MatchDateRule.Pick(dates.Final, runTime, after, null, kickoffs) ?? throw NoDate(tie);
 
         AddKickoff(clubKickoffs, tie, kickoff);
 
@@ -203,7 +207,8 @@ public static class ContinentalKnockoutPlanner
             runTime,
             after,
             null,
-            KickoffsOf(clubKickoffs, tie)) ?? throw NoDate(tie);
+            DomesticCupPlanIndexes.KickoffsOf(clubKickoffs, tie.HostLeagueTeamId, tie.OtherLeagueTeamId))
+            ?? throw NoDate(tie);
 
         AddKickoff(clubKickoffs, tie, firstKickoff);
 
@@ -212,7 +217,8 @@ public static class ContinentalKnockoutPlanner
             runTime,
             firstKickoff,
             null,
-            KickoffsOf(clubKickoffs, tie)) ?? throw NoDate(tie);
+            DomesticCupPlanIndexes.KickoffsOf(clubKickoffs, tie.HostLeagueTeamId, tie.OtherLeagueTeamId))
+            ?? throw NoDate(tie);
 
         AddKickoff(clubKickoffs, tie, secondKickoff);
 
@@ -251,27 +257,6 @@ public static class ContinentalKnockoutPlanner
             ContinentalRound.SemiFinal => dates.SemiFinal,
             _ => null,
         };
-    }
-
-    /// <summary>
-    /// Gathers the kickoffs of every match of both clubs of a tie.
-    /// </summary>
-    /// <param name="clubKickoffs">The kickoffs of each club's matches.</param>
-    /// <param name="tie">The tie.</param>
-    /// <returns>The kickoffs of the host and of the other club, none for a club with no match.</returns>
-    private static List<DateTime> KickoffsOf(Dictionary<int, List<DateTime>> clubKickoffs, ContinentalKnownTie tie)
-    {
-        List<DateTime> kickoffs = new();
-
-        foreach (int clubId in new[] { tie.HostLeagueTeamId, tie.OtherLeagueTeamId })
-        {
-            if (clubKickoffs.TryGetValue(clubId, out List<DateTime>? ofClub))
-            {
-                kickoffs.AddRange(ofClub);
-            }
-        }
-
-        return kickoffs;
     }
 
     /// <summary>

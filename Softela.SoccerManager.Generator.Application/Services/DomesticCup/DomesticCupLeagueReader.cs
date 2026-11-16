@@ -6,8 +6,8 @@ using Softela.SoccerManager.Generator.Application.Services.Seasons;
 namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 
 /// <summary>
-/// Reads the league side of a season for the cup: which division each club plays in, how big the divisions are and
-/// which calendar the league was written on.
+/// Reads the league side of a season for the cups and the playoffs: which division each club plays in, how big the
+/// divisions are and which calendar the league was written on.
 /// </summary>
 internal static class DomesticCupLeagueReader
 {
@@ -48,8 +48,8 @@ internal static class DomesticCupLeagueReader
                 throw new SeasonRefusedException(
                     string.Create(
                         CultureInfo.InvariantCulture,
-                        $"League match {match.Id} has no home or no away club, so the cup cannot read who plays in ")
-                    + "the league. Fix its statistic rows, or reset the season.");
+                        $"League match {match.Id} has no home or no away club, so the generator cannot read who plays ")
+                    + "in the league. Fix its statistic rows, or reset the season.");
             }
 
             int division = match.CompetitionId!.Value;
@@ -99,7 +99,8 @@ internal static class DomesticCupLeagueReader
                     string.Create(
                         CultureInfo.InvariantCulture,
                         $"Division {divisionId} has no league matches while the other divisions have them, and ")
-                    + "the cup needs the whole league. Reset the season so its league is written again.");
+                    + "the cups and the playoffs need the whole league. "
+                    + "Reset the season so its league is written again.");
             }
 
             counts.Add(count);
@@ -132,11 +133,11 @@ internal static class DomesticCupLeagueReader
             string reason = DomesticCupReader.ReasonOf(exception);
 
             throw new SeasonRefusedException(
-                $"The league matches give divisions the cup's calendar cannot use: {reason}");
+                $"The league matches give divisions the season's calendar cannot use: {reason}");
         }
 
         return calendar ?? throw new SeasonRefusedException(
             "The league matches are not on the matchdays of their season's calendar: one was moved or made by hand, "
-            + "so the cup's dates cannot be rebuilt. Move it back, or reset the season.");
+            + "so the season's dates cannot be rebuilt. Move it back, or reset the season.");
     }
 }

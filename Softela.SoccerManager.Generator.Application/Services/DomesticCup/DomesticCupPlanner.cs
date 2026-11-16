@@ -307,15 +307,10 @@ public static class DomesticCupPlanner
         DateTime runTime,
         Dictionary<int, List<DateTime>> kickoffsOfClub)
     {
-        List<DateTime> clubKickoffs = new();
-
-        foreach (int clubId in new[] { tie.FirstLeagueTeamId, tie.SecondLeagueTeamId })
-        {
-            if (kickoffsOfClub.TryGetValue(clubId, out List<DateTime>? kickoffs))
-            {
-                clubKickoffs.AddRange(kickoffs);
-            }
-        }
+        List<DateTime> clubKickoffs = DomesticCupPlanIndexes.KickoffsOf(
+            kickoffsOfClub,
+            tie.FirstLeagueTeamId,
+            tie.SecondLeagueTeamId);
 
         return MatchDateRule.Pick(planned, runTime, after, before, clubKickoffs);
     }
