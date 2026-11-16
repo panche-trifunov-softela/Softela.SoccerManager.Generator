@@ -14,16 +14,11 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// The continental cup step: it writes the league phase of the league's two continental cups, with one standings row
 /// for each entrant, once the season's league matches exist. It reads the season again inside its own lock, so it sees
 /// the league matches that the step before it wrote, and it refuses cups it cannot write without ever failing the run.
-/// A written draw is never changed: later ticks read the cups back and write nothing.
+/// A written league phase is never changed: later ticks leave it as it is, and the knockouts that follow it are written
+/// by <see cref="ContinentalKnockoutStep"/>.
 /// </summary>
 internal sealed class ContinentalCupStep : ILeagueStep
 {
-    /// <summary>
-    /// The competition format of a continental cup: a league phase followed by a knockout, as the backend's
-    /// <c>CompetitionFormat.GroupAndKnockout</c>.
-    /// </summary>
-    private const byte GroupAndKnockoutFormat = 3;
-
     /// <summary>
     /// The number of league clubs that the two cups take together: the first 8 of the pyramid for cup 1 and the next 8
     /// for cup 2.
@@ -81,13 +76,11 @@ internal sealed class ContinentalCupStep : ILeagueStep
     /// <returns>A task that completes once the cups have been handled.</returns>
     public async Task RunAsync(LeagueStepContext context, CancellationToken cancellationToken)
     {
-        List<GetCompetitionsResult> cups = context.Competitions
-            .Where(IsContinentalCup)
-            .OrderBy(competition => competition.Id)
-            .ToList();
+        List<GetCompetitionsResult> cups = ContinentalCupFinder.Find(context.Competitions);
 
         // Cheap check before the lock: a tick that finds both cups with matches has nothing to do.
-        if (cups.Count == 2 && cups.All(cup => HasMatchInSeason(context, cup)))
+        if (cups.Count == 2
+            && cups.All(cup => ContinentalCupFinder.HasMatchInSeason(context.LeagueMatches, context.Season.Id, cup)))
         {
             LogBothCupsHaveMatches(context, cups[0], cups[1]);
 
@@ -141,31 +134,6 @@ internal sealed class ContinentalCupStep : ILeagueStep
     }
 
     /// <summary>
-    /// Tells whether a competition has the shape of a continental cup: it is not a division, it is not domestic, it is
-    /// a league phase with a knockout and it has no age limit, which sets it apart from a youth cup.
-    /// </summary>
-    /// <param name="competition">The competition.</param>
-    /// <returns>True when the competition is shaped like a continental cup.</returns>
-    private static bool IsContinentalCup(GetCompetitionsResult competition)
-    {
-        return competition.Order == 0
-            && !competition.IsDomestic
-            && competition.Format == GroupAndKnockoutFormat
-            && competition.MaxAgeAllowed is null;
-    }
-
-    /// <summary>
-    /// Tells whether the tick's read of the league's matches has a match of the newest season in a cup.
-    /// </summary>
-    /// <param name="context">The league, its newest season and what the tick read at its start.</param>
-    /// <param name="cup">The cup's competition.</param>
-    /// <returns>True when the cup has a match in the season.</returns>
-    private static bool HasMatchInSeason(LeagueStepContext context, GetCompetitionsResult cup)
-    {
-        return context.LeagueMatches.Any(match => match.SeasonId == context.Season.Id && match.CompetitionId == cup.Id);
-    }
-
-    /// <summary>
     /// Names a competition for a log line, with its id.
     /// </summary>
     /// <param name="competition">The competition.</param>
@@ -196,7 +164,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
 
         IReadOnlyList<SeasonMatch> season = SeasonMatchJoiner.Join(seasonMatches, scores);
         List<int> divisionIds = context.Divisions.Select(division => division.Id).ToList();
-        List<SeasonMatch> leagueMatches = LeagueMatchesOf(season, divisionIds);
+        List<SeasonMatch> leagueMatches = DomesticCupLeagueReader.LeagueMatchesOf(season, divisionIds);
 
         if (leagueMatches.Count == 0)
         {
@@ -278,24 +246,6 @@ internal sealed class ContinentalCupStep : ILeagueStep
     }
 
     /// <summary>
-    /// Picks the league matches out of the season: the matches with no stage that belong to a division of the league,
-    /// in kickoff order.
-    /// </summary>
-    /// <param name="season">The season's matches with their scores.</param>
-    /// <param name="divisionIds">The competition ids of the league's divisions.</param>
-    /// <returns>The league matches, in kickoff order and then id order.</returns>
-    private static List<SeasonMatch> LeagueMatchesOf(IReadOnlyList<SeasonMatch> season, IReadOnlyList<int> divisionIds)
-    {
-        HashSet<int> divisionSet = new(divisionIds);
-
-        return season
-            .Where(match => match.Stage is null && match.CompetitionId is { } id && divisionSet.Contains(id))
-            .OrderBy(match => match.Kickoff)
-            .ThenBy(match => match.Id)
-            .ToList();
-    }
-
-    /// <summary>
     /// Reads how much of the two cups the season holds: the matches given and the standings rows of each cup.
     /// </summary>
     /// <param name="context">The league, its newest season and what the tick read at its start.</param>
@@ -336,17 +286,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
         int smallMatchdays = ContinentalMatchdayRules.MatchdayCount(ContinentalInputValidator.SmallCupClubCount);
         int largeMatchdays = ContinentalMatchdayRules.MatchdayCount(ContinentalInputValidator.LargeCupClubCount);
 
-        int cupSize;
-
-        if (dates.LeaguePhase.Count == smallMatchdays)
-        {
-            cupSize = ContinentalInputValidator.SmallCupClubCount;
-        }
-        else if (dates.LeaguePhase.Count == largeMatchdays)
-        {
-            cupSize = ContinentalInputValidator.LargeCupClubCount;
-        }
-        else
+        if (!ContinentalMatchdayRules.TryGetCupSize(dates.LeaguePhase.Count, out int cupSize))
         {
             throw new SeasonRefusedException(
                 string.Create(
@@ -720,7 +660,8 @@ internal sealed class ContinentalCupStep : ILeagueStep
     }
 
     /// <summary>
-    /// Logs that both cups already have their league phase.
+    /// Logs that both cups already have their league phase, which leaves this step nothing to add. The knockouts are
+    /// the next step's.
     /// </summary>
     /// <param name="context">The league, its newest season and what the tick read at its start.</param>
     /// <param name="cup1">The first cup.</param>
@@ -728,8 +669,8 @@ internal sealed class ContinentalCupStep : ILeagueStep
     private void LogAlreadyWritten(LeagueStepContext context, GetCompetitionsResult cup1, GetCompetitionsResult cup2)
     {
         _logger.LogInformation(
-            LogPrefix + ": the continental cups (competitions {Cup1Id} and {Cup2Id}) are already written, so there "
-            + "is nothing to add.",
+            LogPrefix + ": the league phase of the continental cups (competitions {Cup1Id} and {Cup2Id}) is already "
+            + "written, so this step has nothing to add; the knockouts are written by the next step.",
             context.League.Name,
             context.League.Id,
             context.Season.SeasonNumber,
@@ -739,8 +680,8 @@ internal sealed class ContinentalCupStep : ILeagueStep
     }
 
     /// <summary>
-    /// Logs that both cups have matches in the season. The check does not look at the standings, so it does not say
-    /// that the cups are fully written.
+    /// Logs that both cups have matches in the season, so the league phase is written and this step has nothing to add.
+    /// The check does not look at the standings, so it does not say that the cups are fully written.
     /// </summary>
     /// <param name="context">The league, its newest season and what the tick read at its start.</param>
     /// <param name="cup1">The first cup.</param>
@@ -752,7 +693,8 @@ internal sealed class ContinentalCupStep : ILeagueStep
     {
         _logger.LogInformation(
             LogPrefix + ": both continental cups (competitions {Cup1Id} and {Cup2Id}) already have matches this "
-            + "season, so there is nothing to add.",
+            + "season, so their league phase is written and this step has nothing to add; the knockouts are written "
+            + "by the next step.",
             context.League.Name,
             context.League.Id,
             context.Season.SeasonNumber,

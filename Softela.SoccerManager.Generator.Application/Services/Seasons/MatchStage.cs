@@ -16,4 +16,34 @@ internal enum MatchStage : byte
     /// null. The value is the backend's <c>MatchStage.ContinentalLeaguePhase</c>.
     /// </summary>
     ContinentalLeaguePhase = 4,
+
+    /// <summary>
+    /// A tie of a continental cup's play-off, played over two legs: its leg is 1 or 2 and its round number is null. The
+    /// value is the backend's <c>MatchStage.ContinentalKnockoutPlayOff</c>.
+    /// </summary>
+    ContinentalKnockoutPlayOff = 5,
+
+    /// <summary>
+    /// A tie of a continental cup's round of 16, played over two legs: its leg is 1 or 2 and its round number is null.
+    /// The value is the backend's <c>MatchStage.ContinentalRoundOf16</c>.
+    /// </summary>
+    ContinentalRoundOf16 = 6,
+
+    /// <summary>
+    /// A tie of a continental cup's quarter-final, played over two legs: its leg is 1 or 2 and its round number is
+    /// null. The value is the backend's <c>MatchStage.ContinentalQuarterFinal</c>.
+    /// </summary>
+    ContinentalQuarterFinal = 7,
+
+    /// <summary>
+    /// A tie of a continental cup's semi-final, played over two legs: its leg is 1 or 2 and its round number is null.
+    /// The value is the backend's <c>MatchStage.ContinentalSemiFinal</c>.
+    /// </summary>
+    ContinentalSemiFinal = 8,
+
+    /// <summary>
+    /// The final of a continental cup: a single match, its leg and its round number are null. The value is the
+    /// backend's <c>MatchStage.ContinentalFinal</c>.
+    /// </summary>
+    ContinentalFinal = 9,
 }

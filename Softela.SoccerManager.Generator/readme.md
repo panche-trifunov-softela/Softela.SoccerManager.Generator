@@ -8,17 +8,19 @@ The database needs the backend's scripts up to `V1_0_0_57`: each write reads its
 domestic cup step needs `dbo.GetMatchScoresBySeason`, `dbo.GetLeagueTeamSquad` and `dbo.InsertStagedMatch` too, which
 come with the same scripts: `V1_0_0_57` adds the stage columns that `dbo.InsertStagedMatch` writes.
 
-The continental cup step needs backend `V1_0_0_65` (`IsGuest` on `dbo.GetLeagueTeams`) and the new read
-`dbo.GetLeagueSquadRatings`, and it writes standings rows through `dbo.InsertStanding`. Deploy the backend first:
-without the procedure the step refuses with a log line, and tries again at the next tick.
+The continental cup step, which writes the league phase, needs backend `V1_0_0_65` (`IsGuest` on `dbo.GetLeagueTeams`)
+and the new read `dbo.GetLeagueSquadRatings`, and it writes standings rows through `dbo.InsertStanding`. Deploy the
+backend first: without the procedure the step refuses with a log line, and tries again at the next tick. The
+continental knockout step needs nothing more than the domestic cup step does: it writes its matches through
+`dbo.InsertStagedMatch`, with stages 5 to 9 and no round number.
 
 ## GenerateLeagueFixtures
 
 A timer function with the schedule `0 0 */6 * * *`: every six hours, at 00:00, 06:00, 12:00 and 18:00 host time.
 
 For each league, in id order, it takes the newest season (the highest SeasonNumber) and its divisions (the competitions
-with an Order above 0), and runs three steps for it, one after the other: the league matches step, then the domestic
-cup step, and then the continental cup step.
+with an Order above 0), and runs four steps for it, one after the other: the league matches step, then the domestic
+cup step, then the continental cup step, and then the continental knockout step.
 
 The league matches step writes every league match of the season (two legs, on Thursdays and Sundays at 20:00 UTC,
 from the first Thursday after the day of the run that is at least 24 hours after the league's latest match) plus
@@ -98,16 +100,17 @@ counts 0), until the previous season's tables are used; from Season 2 the step s
   written, that lists the entrants with fewer than 16 rated players;
 - each cup's entrants are cut into four pots in that order, and the draw is seeded by the season and the cup.
 
-A written draw is frozen: once both cups have a match of the season, later ticks write nothing, so later sales or
-purchases do not change it. Those ticks do not read the cups' standings, so a standings row added or deleted by hand
-after the write is not reported.
+A written draw is frozen: once both cups have a match of the season, later ticks write no league phase, so later sales
+or purchases do not change it. Those ticks do not read the cups' standings, so a standings row added or deleted by
+hand after the write is not reported. The knockouts that follow the league phase are written by the continental
+knockout step (see "Continental knockouts").
 
 It skips the cups, and tries again at the next tick, when:
 
 - the league matches are not written yet;
 - the calendar has no continental cups at the divisions' size (they need 12 clubs or more in a division);
 - the league has no competition with the cups' shape;
-- both cups already have matches;
+- both cups already have matches, which is to say the league phase is written;
 - another run holds the season's lock, or wrote the cups first.
 
 It warns, and tries again at the next tick, when:
@@ -131,9 +134,95 @@ It refuses the cups, which is logged as an error and tried again at every tick, 
 
 A guest in a continental cup has a standings row, so it cannot be deleted from the league.
 
-A failed write, of league matches, of cup ties or of continental cups, rolls that write back and fails the run, so the
-host reports it.
+A failed write, of league matches, of cup ties, of continental cups or of their knockouts, rolls that write back and
+fails the run, so the host reports it.
 Everything written before it stays written, and the next tick starts over from the first league.
+
+## Continental knockouts
+
+The continental knockout step runs last. It does nothing until both continental cups have a match of the season: on
+the tick that writes the league phase it finds nothing yet, and nothing can be finished by then anyway. From then on
+it reads the season again inside its own lock at every tick, so it sees every result entered up to that moment. Each
+cup is handled on its own, cup 1 first.
+
+A cup's knockout starts once all of its league-phase matches are finished: 48 matches for a cup of 16 clubs, 128 for a
+cup of 32. Until then the step logs one information line a tick for the cup: "waits for its league phase: n of 48
+matches are finished".
+
+The cup's table is ranked from its league phase at every tick, so it is never stored:
+
+- points, then goal difference, then goals scored;
+- head-to-head, only when the clubs still level all met the same number of times, at least once;
+- then a shuffle seeded by the season and the clubs.
+
+A club has met only 6 of the other 15 clubs (8 of 31 in a cup of 32), so clubs that are level are usually ordered by the
+shuffle, also at the cut (8th and 9th place, 24th and 25th place).
+
+The bracket comes from the table, and the higher place hosts the second leg and the final:
+
+- 16 clubs: the quarter-finals are 1 v 8, 4 v 5, 2 v 7 and 3 v 6; places 9 to 16 are out;
+- 32 clubs: the play-offs are 9 v 23, 11 v 21, 13 v 19 and 15 v 17, and 10 v 24, 12 v 22, 14 v 20 and 16 v 18; the
+  round of 16 pairs their winners with places 1 to 8; places 25 to 32 are out;
+- the quarter-finals, the semi-finals and the final follow.
+
+Each tie is written once both of its clubs are known, with both legs together. The matches have these values:
+
+- Stage 5 for a play-off, 6 for the round of 16, 7 for a quarter-final, 8 for a semi-final and 9 for the final;
+- Leg 1 and 2 for a tie of two legs, none for the final;
+- RoundNumber is empty, because a knockout stage has no rounds;
+- two MatchTeamStatistics rows at zero, one for each side;
+- no Standings rows: a knockout match does not change the league phase's table.
+
+A match is on its round's calendar Monday at its calendar time when that Monday is at least 24 hours after the tick and
+at least 24 hours from every other match of both clubs this season, otherwise on the next Monday that is. The first leg
+is after the round before (after the league phase for the first round), and the second leg after the first. The
+calendar has no spare week, so a result entered more than about 6 days late, or one clash with another match, moves that
+tie and the later rounds a week, and the final can land on the first calendar day of the World Cup finals. The ticks run
+every 6 hours (UTC on Azure), so a tie is written within 6 hours of its second club being known. The knockout's dates
+have no end bound.
+
+A tie is decided by its goals over both legs; own goals count and shootouts do not, and there is no away-goals rule.
+When the legs are level, the shootout of the second leg decides. The final is decided by its goals, and then by its
+shootout. Enter a match's goals first and set `IsFinished` last: a finished match with no goals recorded reads 0-0.
+
+It skips a cup, and tries again at the next tick, when:
+
+- its league phase is not finished: the information line above;
+- no tie has become known since the last tick: it logs that the cup has no new knockout tie, with the number of ties
+  written and decided;
+- another run holds the season's lock.
+
+It refuses a cup, which is logged as an error and tried again at every tick, when:
+
+- a finished tie is level on aggregate and its second leg has no shootout, or the final is finished with no winner:
+  fix the result;
+- a match of the cup has no home or no away club, or a stage or a leg that the cup does not have: delete it, or reset
+  the cup's knockout matches (for a league-phase match, reset both cups together);
+- a knockout match is not a leg of a known tie, because it was made by hand or because a result was edited after the
+  next round was written: reset the cup's knockout matches from the stage the line names (see "Writing a season
+  again");
+- a tie has two matches for one leg, or the final has two matches: delete one of them;
+- a tie has only one leg, or its two legs are not played with the home and away clubs swapped: delete its legs, and
+  the next tick writes the tie again; if its next round is already written, reset the cup's knockout matches from the
+  stage the line names instead;
+- a league-phase result, or an earlier round's result, was reopened after the next round was written: finish it
+  again, or reset the knockout matches;
+- the league phase is damaged, with matches missing or moved to other clubs: reset both cups together (see "Writing a
+  season again");
+- no Monday within a year fits a tie: move the matches of either club that are in the way.
+
+A refused cup writes nothing on that tick, and the other cup carries on. The refusals of the whole season are the same
+for both cups: the season has no league matches, the calendar has no continental cups, or its league phase has a number
+of matchdays that no cup has. Both cups are refused then.
+
+Its log lines each start with the league and the season, and are:
+
+- information, "the continental cup ... waits for its league phase: n of 48 matches are finished";
+- information, "the continental cup ... has no new knockout tie: n ties are written and n decided";
+- information, "wrote knockout matches of the continental cup ..., n in all: semi-final ties 1 and 2 (4 matches)";
+- error, "the continental knockouts of ... are refused: ... The next tick tries again";
+- error, "the continental knockouts are refused: ... The next tick tries again", for both cups;
+- information, "another run holds this season's lock, so this run leaves the continental knockouts to it".
 
 ## Running it locally
 
@@ -196,5 +285,18 @@ DELETE FROM dbo.Matches WHERE SeasonId = <season id> AND CompetitionId IN (<cont
 DELETE FROM dbo.Standings WHERE SeasonId = <season id> AND CompetitionId IN (<continental cup 1 id>, <continental cup 2 id>);
 ```
 
-The two cups are always reset together, never one alone. The next tick draws both again from today's squads. The draw is
-seeded by the season and the cup's id, and cup 1 is the lower id, so recreating a competition can swap the cups.
+The two cups' league phases are always reset together, never one alone. The next tick draws both again from today's
+squads. The draw is seeded by the season and the cup's id, and cup 1 is the lower id, so recreating a competition can
+swap the cups.
+
+To write one cup's knockout again, delete its knockout matches. The league phase stays, which is why one cup can be
+reset alone:
+
+```sql
+DELETE FROM dbo.Matches WHERE SeasonId = <season id> AND CompetitionId = <continental cup id> AND Stage >= <stage>;
+```
+
+Use `<stage>` 5 to delete every knockout match of the cup, or the stage that a refusal names to delete that round and
+the rounds after it. The delete takes the matches with their results and statistics, by the cascade. The next tick
+writes them again from the current table, on the next free Monday. To delete one whole tie by hand, delete both of its
+matches: the next tick writes it again, unless its next round is written.
