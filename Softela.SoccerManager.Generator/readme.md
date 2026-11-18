@@ -48,8 +48,8 @@ It refuses a league, which is logged as an error and tried again at every tick, 
 - the first match would be more than 365 days away, because an existing match is that far ahead.
 
 The domestic cup step reads the season again inside its own lock, so it sees the league matches the step before it
-wrote. The cup is the league's one competition with Order 0, IsDomestic 1, Format 1 and no age limit (MaxAgeAllowed
-NULL); a youth cup is never it. Its entrants are the clubs of the season's written league matches.
+wrote. The cup is the league's one competition with Order 0, IsDomestic 1, IsNational 0, Format 1 and no age limit
+(MaxAgeAllowed NULL); a youth cup is never it. Its entrants are the clubs of the season's written league matches.
 
 When the cup starts, the clubs of the top divisions get the byes (the top division first, and the strongest squads
 first inside a division), the draw is seeded by the season, and the ties of round 1 and the ties of round 2 between two
@@ -83,8 +83,8 @@ When it was a match of a later round, the tie is written again as unplayed, but 
 the cup is refused.
 
 The continental cup step reads the season again inside its own lock, as the domestic cup step does. The league's two
-continental cups are its competitions with Order 0, IsDomestic 0, Format 3 and no age limit (MaxAgeAllowed NULL),
-ordered by id: cup 1 is the lower id.
+continental cups are its competitions with Order 0, IsDomestic 0, IsNational 0, Format 3 and no age limit
+(MaxAgeAllowed NULL), ordered by id: cup 1 is the lower id.
 
 Once the season's league matches exist, it writes the league phase of both cups in one transaction: 48 matches over 6
 matchdays for a cup of 16 clubs, or 128 over 8 matchdays for a cup of 32 clubs (the calendar's number of league-phase
@@ -394,7 +394,7 @@ The answer is 202 with an empty body; no key is needed locally.
 Find the id of the league's domestic cup:
 
 ```sql
-SELECT Id, Name FROM dbo.Competitions WHERE LeagueId = <league id> AND [Order] = 0 AND IsDomestic = 1 AND Format = 1 AND MaxAgeAllowed IS NULL;
+SELECT Id, Name FROM dbo.Competitions WHERE LeagueId = <league id> AND [Order] = 0 AND IsDomestic = 1 AND IsNational = 0 AND Format = 1 AND MaxAgeAllowed IS NULL;
 ```
 
 Delete the season's division and cup matches, and the next tick writes them again, the cup included:
@@ -417,7 +417,7 @@ resets that keep the league matches are in "Promotion playoffs".
 To write the continental cups again, find their ids by shape. Cup 1 is the lower id:
 
 ```sql
-SELECT Id, Name FROM dbo.Competitions WHERE LeagueId = <league id> AND [Order] = 0 AND IsDomestic = 0 AND Format = 3 AND MaxAgeAllowed IS NULL ORDER BY Id;
+SELECT Id, Name FROM dbo.Competitions WHERE LeagueId = <league id> AND [Order] = 0 AND IsDomestic = 0 AND IsNational = 0 AND Format = 3 AND MaxAgeAllowed IS NULL ORDER BY Id;
 ```
 
 Delete both cups' matches and both cups' standings for the season. Standings do not cascade from matches, and a

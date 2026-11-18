@@ -27,6 +27,12 @@ public sealed class GetCompetitionsResult
     public byte Format { get; set; }
 
     /// <summary>
+    /// True for a national competition, a League's World Cup (backend V1_0_0_68). Until the backend returns the column
+    /// it reads false.
+    /// </summary>
+    public bool IsNational { get; set; }
+
+    /// <summary>
     /// The position of the competition in its league; an order above 0 marks a division.
     /// </summary>
     public int Order { get; set; }

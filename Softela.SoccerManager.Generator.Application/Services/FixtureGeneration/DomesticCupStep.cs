@@ -79,8 +79,8 @@ internal sealed class DomesticCupStep : ILeagueStep
         if (cups.Count == 0)
         {
             _logger.LogInformation(
-                LogPrefix + ": the league has no domestic cup (a competition with Order 0, IsDomestic, Format 1 and "
-                + "no age limit), so there is no cup to write.",
+                LogPrefix + ": the league has no domestic cup (a competition with Order 0, IsDomestic, not national, "
+                + "Format 1 and no age limit), so there is no cup to write.",
                 league.Name,
                 league.Id,
                 season.SeasonNumber,
@@ -136,7 +136,7 @@ internal sealed class DomesticCupStep : ILeagueStep
 
     /// <summary>
     /// Tells whether a competition has the shape of a domestic cup: it is not a division, it is domestic, it is a
-    /// knockout and it has no age limit, which sets it apart from a youth cup.
+    /// knockout, it is not national and it has no age limit, which sets it apart from a youth cup.
     /// </summary>
     /// <param name="competition">The competition.</param>
     /// <returns>True when the competition is shaped like a domestic cup.</returns>
@@ -144,6 +144,7 @@ internal sealed class DomesticCupStep : ILeagueStep
     {
         return competition.Order == 0
             && competition.IsDomestic
+            && !competition.IsNational
             && competition.Format == KnockoutOnlyFormat
             && competition.MaxAgeAllowed is null;
     }

@@ -45,7 +45,8 @@ internal static class ContinentalCupFinder
 
     /// <summary>
     /// Tells whether a competition has the shape of a continental cup: it is not a division, it is not domestic, it is
-    /// a league phase with a knockout and it has no age limit, which sets it apart from a youth cup.
+    /// a league phase with a knockout and it has no age limit, which sets it apart from a youth cup. A national
+    /// competition, the World Cup, is also a group stage with a knockout but is not a continental cup.
     /// </summary>
     /// <param name="competition">The competition.</param>
     /// <returns>True when the competition is shaped like a continental cup.</returns>
@@ -53,6 +54,7 @@ internal static class ContinentalCupFinder
     {
         return competition.Order == 0
             && !competition.IsDomestic
+            && !competition.IsNational
             && competition.Format == GroupAndKnockoutFormat
             && competition.MaxAgeAllowed is null;
     }
