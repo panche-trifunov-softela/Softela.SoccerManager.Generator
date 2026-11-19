@@ -41,6 +41,7 @@ public static class BuilderExtensions
             .AddScoped<ILeagueTeamRepository, LeagueTeamRepository>()
             .AddScoped<IMatchRepository, MatchRepository>()
             .AddScoped<IMatchTeamStatisticRepository, MatchTeamStatisticRepository>()
+            .AddScoped<INationalTeamRepository, NationalTeamRepository>()
             .AddScoped<ISeasonRepository, SeasonRepository>()
             .AddScoped<IStandingRepository, StandingRepository>()
             .AddScoped<ITeamRepository, TeamRepository>();

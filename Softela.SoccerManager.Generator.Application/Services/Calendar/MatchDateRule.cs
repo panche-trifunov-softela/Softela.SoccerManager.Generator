@@ -2,8 +2,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 
 /// <summary>
 /// The one rule that gives a match its date: the first planned date, stepping forward, that keeps the gaps every match
-/// needs. The domestic cup and the continental knockouts use <see cref="Pick"/>, which steps by whole weeks; the
-/// promotion playoffs use <see cref="PickOnDays"/>, which steps by days and keeps to a set of weekdays.
+/// needs. The domestic cup, the continental cups' league phase and knockouts, and the World Cup qualifiers use
+/// <see cref="Pick"/>, which steps by whole weeks; the promotion playoffs use <see cref="PickOnDays"/>, which steps by
+/// days and keeps to a set of weekdays.
 /// </summary>
 public static class MatchDateRule
 {

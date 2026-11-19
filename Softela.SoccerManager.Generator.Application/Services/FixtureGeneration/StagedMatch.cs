@@ -15,6 +15,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// <param name="Leg">The leg of a two-legged tie, or null for a single match.</param>
 /// <param name="HomeLeagueTeamId">The league team id of the home club.</param>
 /// <param name="AwayLeagueTeamId">The league team id of the away club.</param>
+/// <param name="GroupNumber">
+/// The group of a World Cup group match, counted from 1 across the competition's season, or null on every other match.
+/// </param>
 internal sealed record StagedMatch(
     int CompetitionId,
     DateTime Kickoff,
@@ -22,4 +25,5 @@ internal sealed record StagedMatch(
     byte? RoundNumber,
     byte? Leg,
     int HomeLeagueTeamId,
-    int AwayLeagueTeamId);
+    int AwayLeagueTeamId,
+    byte? GroupNumber = null);

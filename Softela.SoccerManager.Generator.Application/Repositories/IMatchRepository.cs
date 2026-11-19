@@ -59,8 +59,8 @@ public interface IMatchRepository
         Guid modifiedBy);
 
     /// <summary>
-    /// Inserts one staged match, a match with a stage: a cup round, a playoff or a continental stage. The parameters
-    /// mirror those of <c>dbo.InsertStagedMatch</c>.
+    /// Inserts one staged match, a match with a stage: a cup round, a playoff, a continental stage or a World Cup
+    /// qualifier group. The parameters mirror those of <c>dbo.InsertStagedMatch</c>.
     /// </summary>
     /// <param name="seasonId">The identifier of the season the match belongs to.</param>
     /// <param name="competitionId">The identifier of the competition the match is played in.</param>
@@ -72,6 +72,9 @@ public interface IMatchRepository
     /// <param name="stage">The stage the match belongs to, as the backend's match stage code.</param>
     /// <param name="roundNumber">The round of the stage, or <see langword="null"/> when it has no rounds.</param>
     /// <param name="leg">The leg of the tie, or <see langword="null"/> for a single match.</param>
+    /// <param name="groupNumber">
+    /// The group of a World Cup group match, or <see langword="null"/> for every other match.
+    /// </param>
     /// <param name="createdAt">The UTC date and time the row is created.</param>
     /// <param name="modifiedAt">The UTC date and time the row is last modified.</param>
     /// <param name="createdBy">The identifier of the user that creates the row.</param>
@@ -88,6 +91,7 @@ public interface IMatchRepository
         byte stage,
         byte? roundNumber,
         byte? leg,
+        byte? groupNumber,
         DateTime createdAt,
         DateTime modifiedAt,
         Guid createdBy,

@@ -5,10 +5,11 @@ using Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 namespace Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
 
 /// <summary>
-/// Dates the matches of a continental cup's league phase. Each match keeps its matchday's calendar Monday, or moves to
-/// the next Monday that clears both clubs' other matches by 24 hours and comes after the matchday before. The whole
-/// league phase must end before the first knockout date; when it cannot, the season plays without the continental
-/// cups.
+/// Dates the matches of a continental cup's league phase. It also dates the groups of the World Cup qualifiers, on
+/// their Fridays, in the same way. Each match keeps its matchday's calendar date, a Monday for a cup and a Friday for
+/// a qualifier, or moves to the next such weekday that clears both clubs' other matches by 24 hours and comes after
+/// the matchday before. The whole league phase must end before the first knockout date, and the qualifiers before the
+/// first day of the finals; when it cannot, the season plays without the continental cups or the qualifiers.
 /// </summary>
 internal static class ContinentalLeaguePhaseDatePlanner
 {
@@ -18,7 +19,10 @@ internal static class ContinentalLeaguePhaseDatePlanner
     /// matches in the way. It catches a season whose league phase can no longer start in time.
     /// </summary>
     /// <param name="leaguePhaseDates">The calendar date of each matchday, earliest first.</param>
-    /// <param name="firstKnockoutDate">The date of the first knockout match; the league phase ends before it.</param>
+    /// <param name="firstKnockoutDate">
+    /// The date of the first knockout match, or of the first day of the finals for the qualifiers; the league phase
+    /// ends before it.
+    /// </param>
     /// <param name="runTime">The moment of the run, in UTC.</param>
     /// <returns>True when every matchday has a date.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="leaguePhaseDates"/> is null.</exception>
@@ -48,15 +52,21 @@ internal static class ContinentalLeaguePhaseDatePlanner
     }
 
     /// <summary>
-    /// Dates the matches of one cup's league phase. Each match is dated by <see cref="MatchDateRule.Pick"/> from its
-    /// matchday's calendar date, after the latest kickoff placed for the matchday before, before the first knockout
-    /// date, and at least 24 hours from every other match of both clubs. Each kickoff is recorded against both clubs,
-    /// so the matches after it keep their distance. The index is shared by the caller across both cups; when the result
-    /// is null it holds the kickoffs placed before the failure, and the caller drops it.
+    /// Dates the matches of one cup's league phase, or of every World Cup qualifier group. Each match is dated by
+    /// <see cref="MatchDateRule.Pick"/> from its matchday's calendar date, after the latest kickoff placed for the
+    /// matchday before, before the first knockout date, and at least 24 hours from every other match of both clubs.
+    /// Each kickoff is recorded against both clubs, so the matches after it keep their distance. The continental cup
+    /// step shares the index across both cups; when the result is null it holds the kickoffs placed before the failure,
+    /// and the caller drops it.
     /// </summary>
-    /// <param name="fixtures">The matches of one cup, in draw order: sorted by matchday.</param>
+    /// <param name="fixtures">
+    /// The matches of one cup, or of every qualifier group, in draw order: sorted by matchday.
+    /// </param>
     /// <param name="leaguePhaseDates">The calendar date of each matchday, earliest first.</param>
-    /// <param name="firstKnockoutDate">The date of the first knockout match; the league phase ends before it.</param>
+    /// <param name="firstKnockoutDate">
+    /// The date of the first knockout match, or of the first day of the finals for the qualifiers; the league phase
+    /// ends before it.
+    /// </param>
     /// <param name="runTime">The moment of the run, in UTC.</param>
     /// <param name="kickoffsOfClub">The kickoffs of each club's matches; the dated matches are added to it.</param>
     /// <returns>
