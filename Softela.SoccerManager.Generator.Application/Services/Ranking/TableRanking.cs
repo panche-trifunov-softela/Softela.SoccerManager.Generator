@@ -1,12 +1,14 @@
 namespace Softela.SoccerManager.Generator.Application.Services.Ranking;
 
 /// <summary>
-/// Ranks a league table from finished matches, for a division, a cup's league phase and later the groups of a World
-/// Cup. The order is points (3 for a win, 1 for a draw, and never a shootout), then goal difference, then goals for.
-/// Participants that are still level are ranked head-to-head, on the matches among themselves only, when every two of
-/// them met the same number of times, at least once. A smaller group that is still level is ranked head-to-head again
-/// on its own matches. What head-to-head cannot separate is shuffled, seeded by the id of the season and the ids of the
-/// participants still level, so every caller that ranks the same table gets the same order.
+/// Ranks a table from finished matches, for a division, a cup's league phase and the groups of a World Cup. The club
+/// order (<see cref="TableOrder.Club"/>) is points (3 for a win, 1 for a draw, and never a shootout), then goal
+/// difference, then goals for. Participants that are still level are ranked head-to-head, on the matches among
+/// themselves only, when every two of them met the same number of times, at least once. A smaller group that is still
+/// level is ranked head-to-head again on its own matches. What head-to-head cannot separate is shuffled, seeded by the
+/// id of the season and the ids of the participants still level, so every caller that ranks the same table gets the
+/// same order. The World Cup order (<see cref="TableOrder.WorldCup"/>) is points, then head-to-head among the
+/// participants level on points, then the overall goal difference, then the overall goals for, then the same shuffle.
 /// </summary>
 public static class TableRanking
 {
@@ -47,15 +49,56 @@ public static class TableRanking
         IReadOnlyList<int> participants,
         IReadOnlyList<TableMatch> matches)
     {
+        return Rank(seasonId, participants, matches, TableOrder.Club);
+    }
+
+    /// <summary>
+    /// Ranks a table in the given order. The overload without an order ranks in <see cref="TableOrder.Club"/>, and the
+    /// promises listed there hold for both orders.
+    /// </summary>
+    /// <param name="seasonId">
+    /// The id of the season the table belongs to. Every caller that ranks the same table passes the same id.
+    /// </param>
+    /// <param name="participants">The ids of every participant of the table.</param>
+    /// <param name="matches">The finished matches of the table, and no others.</param>
+    /// <param name="order">The order to rank in.</param>
+    /// <returns>One row for each participant, from the first place to the last.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="participants"/> or <paramref name="matches"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when a participant is listed more than once, or a match is missing from the list, has a side that is
+    /// not a participant, has the same participant on both sides, or has negative goals.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="order"/> is not a known order.
+    /// </exception>
+    public static IReadOnlyList<TableRow> Rank(
+        int seasonId,
+        IReadOnlyList<int> participants,
+        IReadOnlyList<TableMatch> matches,
+        TableOrder order)
+    {
         ArgumentNullException.ThrowIfNull(participants);
         ArgumentNullException.ThrowIfNull(matches);
+
+        if (!Enum.IsDefined(order))
+        {
+            throw new ArgumentOutOfRangeException(nameof(order), order, "The table order is not known.");
+        }
 
         TableRankingInputValidator.Validate(participants, matches);
 
         IReadOnlyDictionary<int, TableTotals> totals = TableTally.Count(participants, matches);
+        bool worldCup = order == TableOrder.WorldCup;
+
+        IReadOnlyList<IReadOnlyList<int>> levelGroups = worldCup
+            ? TableTally.PointGroups(totals.Values)
+            : TableTally.LevelGroups(totals.Values);
+
         List<IReadOnlyList<int>> segments = new();
 
-        foreach (IReadOnlyList<int> group in TableTally.LevelGroups(totals.Values))
+        foreach (IReadOnlyList<int> group in levelGroups)
         {
             if (group.Count == 1)
             {
@@ -64,7 +107,9 @@ public static class TableRanking
                 continue;
             }
 
-            segments.AddRange(HeadToHead.Order(seasonId, group, matches));
+            segments.AddRange(worldCup
+                ? HeadToHead.OrderWorldCup(seasonId, group, matches, totals)
+                : HeadToHead.Order(seasonId, group, matches));
         }
 
         return ToRows(segments, totals);

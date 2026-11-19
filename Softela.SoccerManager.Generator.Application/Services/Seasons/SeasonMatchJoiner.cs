@@ -52,7 +52,8 @@ internal static class SeasonMatchJoiner
                 home?.Goals ?? 0,
                 away?.Goals ?? 0,
                 home?.ShootoutGoals,
-                away?.ShootoutGoals));
+                away?.ShootoutGoals,
+                match.GroupNumber));
         }
 
         return joined;

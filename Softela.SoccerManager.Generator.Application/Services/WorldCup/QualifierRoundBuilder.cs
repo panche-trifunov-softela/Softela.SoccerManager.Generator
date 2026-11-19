@@ -1,7 +1,4 @@
-using System.Globalization;
-using Softela.SoccerManager.Generator.Application.Core.Randomness;
 using Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
-using Softela.SoccerManager.Generator.Application.Services.RoundRobin;
 
 namespace Softela.SoccerManager.Generator.Application.Services.WorldCup;
 
@@ -37,36 +34,10 @@ internal static class QualifierRoundBuilder
     {
         ArgumentNullException.ThrowIfNull(groups);
 
-        SeededRandom seeded = new(seasonId);
-        List<(byte GroupNumber, ContinentalFixture Fixture)> fixtures = [];
-
-        foreach (int legs in groups.Select(group => group.Legs).Distinct().OrderByDescending(count => count))
-        {
-            List<QualifierGroup> ofLegs = groups.Where(group => group.Legs == legs).ToList();
-
-            SeededRandom random = seeded.Derive(RandomPurposePrefix + legs.ToString(CultureInfo.InvariantCulture));
-
-            IReadOnlyList<IReadOnlyList<RoundRobinMatch>> schedules = RoundRobinScheduler.Generate(
-                ofLegs.Select(group => group.LeagueTeamIds).ToList(),
-                legs,
-                [],
-                random);
-
-            for (int index = 0; index < ofLegs.Count; index++)
-            {
-                foreach (RoundRobinMatch match in schedules[index])
-                {
-                    fixtures.Add((
-                        ofLegs[index].GroupNumber,
-                        new ContinentalFixture(match.Round, match.HomeClubId, match.AwayClubId)));
-                }
-            }
-        }
-
-        // OrderBy is stable, so the matches of a group keep the scheduler's order within a matchday.
-        return fixtures
-            .OrderBy(entry => entry.Fixture.Matchday)
-            .ThenBy(entry => entry.GroupNumber)
+        List<WorldCupGroup> worldCupGroups = groups
+            .Select(group => new WorldCupGroup(group.GroupNumber, group.LeagueTeamIds, group.Legs))
             .ToList();
+
+        return WorldCupRoundBuilder.Build(worldCupGroups, seasonId, RandomPurposePrefix);
     }
 }

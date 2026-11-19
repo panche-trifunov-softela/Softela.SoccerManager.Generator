@@ -2,7 +2,8 @@ namespace Softela.SoccerManager.Generator.Application.Services.Ranking;
 
 /// <summary>
 /// Counts the matches of a table and cuts the participants into groups that are level. The table and head-to-head both
-/// use it, so the order of points, goal difference and goals for is written in one place only.
+/// use it, so the keys points, goal difference and goals for are counted and compared in one place only, in the club
+/// order and in the World Cup order.
 /// </summary>
 internal static class TableTally
 {
@@ -59,10 +60,48 @@ internal static class TableTally
     /// <returns>The groups of ids, best group first, each group in ascending id.</returns>
     internal static IReadOnlyList<IReadOnlyList<int>> LevelGroups(IEnumerable<TableTotals> totals)
     {
+        return CutBy(totals, KeyOf);
+    }
+
+    /// <summary>
+    /// Cuts the participants into groups that are level on points alone, from the best group to the worst, as the
+    /// first step of the World Cup order. Two participants are level when their points are equal; the id only keeps
+    /// the order of a group fixed.
+    /// </summary>
+    /// <param name="totals">The totals of the participants to order.</param>
+    /// <returns>The groups of ids, best group first, each group in ascending id.</returns>
+    internal static IReadOnlyList<IReadOnlyList<int>> PointGroups(IEnumerable<TableTotals> totals)
+    {
+        return CutBy(totals, total => total.Points);
+    }
+
+    /// <summary>
+    /// Cuts the participants into groups that are level on goal difference and then goals for, from the best group to
+    /// the worst, as the last step of the World Cup order before the shuffle. The totals are whatever the caller
+    /// counted, which for the World Cup order are the overall ones. The id only keeps the order of a group fixed.
+    /// </summary>
+    /// <param name="totals">The totals of the participants to order.</param>
+    /// <returns>The groups of ids, best group first, each group in ascending id.</returns>
+    internal static IReadOnlyList<IReadOnlyList<int>> GoalGroups(IEnumerable<TableTotals> totals)
+    {
+        return CutBy(totals, total => (total.GoalDifference, total.GoalsFor));
+    }
+
+    /// <summary>
+    /// Orders the participants by a key, a higher key being better, and cuts them into groups of equal keys.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the key.</typeparam>
+    /// <param name="totals">The totals of the participants to order.</param>
+    /// <param name="keyOf">Gives the key of a participant's totals.</param>
+    /// <returns>The groups of ids, best group first, each group in ascending id.</returns>
+    private static IReadOnlyList<IReadOnlyList<int>> CutBy<TKey>(
+        IEnumerable<TableTotals> totals,
+        Func<TableTotals, TKey> keyOf)
+    {
         return totals
-            .OrderByDescending(KeyOf)
+            .OrderByDescending(keyOf)
             .ThenBy(total => total.Id)
-            .GroupBy(KeyOf)
+            .GroupBy(keyOf)
             .Select(group => (IReadOnlyList<int>)group.Select(total => total.Id).ToList())
             .ToList();
     }

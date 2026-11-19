@@ -109,22 +109,14 @@ internal static class QualifierGroupDraw
         }
 
         int groupCount = (ranked.Count + GroupSize - 1) / GroupSize;
-        List<List<int>> members = Enumerable.Range(0, groupCount).Select(_ => new List<int>()).ToList();
 
         SeededRandom random = new SeededRandom(seasonId)
             .Derive(RandomPurposePrefix + ((int)confederation).ToString(CultureInfo.InvariantCulture));
 
-        for (int pot = 0; pot < GroupSize; pot++)
-        {
-            List<QualifierNation> nations = ranked.Skip(pot * groupCount).Take(groupCount).ToList();
-
-            random.Shuffle(nations);
-
-            for (int group = 0; group < nations.Count; group++)
-            {
-                members[group].Add(nations[group].LeagueTeamId);
-            }
-        }
+        IReadOnlyList<IReadOnlyList<int>> members = PotDraw.Deal(
+            ranked.Select(entrant => entrant.LeagueTeamId).ToList(),
+            groupCount,
+            random);
 
         List<QualifierGroup> groups = [];
 

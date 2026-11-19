@@ -26,7 +26,7 @@ public static class PlayoffPlanner
     /// <see cref="MatchDateRule.PickOnDays"/> on the days of <see cref="CalendarTemplate.PlayoffMatchDays"/>: after
     /// the last league matchday, or after the later semi-final for a final that follows them, which is planned at
     /// 20:00 UTC on the day after the later semi-final; before the first World Cup finals matchday, when the calendar
-    /// has one; at least 24 hours after the run; and at least 24 hours from every other match of both clubs. Every
+    /// has one; at least 12 hours after the run; and at least 24 hours from every other match of both clubs. Every
     /// planned kickoff is added to both clubs' kickoffs, so the ties planned after it keep their distance.
     /// </summary>
     /// <param name="division">The division, named in a refusal.</param>

@@ -196,11 +196,12 @@ internal static class QualifierEntrantSelector
     }
 
     /// <summary>
-    /// Measures a nation's strength: the sum of its best ratings, a missing rating counting 0.
+    /// Measures a nation's strength: the sum of its best ratings, a missing rating counting 0. The qualifier draw and
+    /// the finals draw both rank nations by it.
     /// </summary>
     /// <param name="squad">The nation's players.</param>
     /// <returns>The sum of the <see cref="RatingsInStrength"/> highest ratings.</returns>
-    private static int StrengthOf(IEnumerable<GetNationalTeamPlayerRatingsResult> squad)
+    internal static int StrengthOf(IEnumerable<GetNationalTeamPlayerRatingsResult> squad)
     {
         return squad
             .Select(player => player.Rating ?? 0)

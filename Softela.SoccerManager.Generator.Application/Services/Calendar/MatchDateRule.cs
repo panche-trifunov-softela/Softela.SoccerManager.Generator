@@ -4,7 +4,8 @@ namespace Softela.SoccerManager.Generator.Application.Services.Calendar;
 /// The one rule that gives a match its date: the first planned date, stepping forward, that keeps the gaps every match
 /// needs. The domestic cup, the continental cups' league phase and knockouts, and the World Cup qualifiers use
 /// <see cref="Pick"/>, which steps by whole weeks; the promotion playoffs use <see cref="PickOnDays"/>, which steps by
-/// days and keeps to a set of weekdays.
+/// days and keeps to a set of weekdays. The World Cup finals use <see cref="PickOnDays"/> too, over every day of the
+/// week, through the finals' own dates helper.
 /// </summary>
 public static class MatchDateRule
 {
@@ -19,7 +20,7 @@ public static class MatchDateRule
     /// Picks the date of a match. The candidates are the planned date and then the same time of day one week later,
     /// two weeks later and so on. The first candidate that meets all of these wins:
     /// <list type="bullet">
-    /// <item><description>is at least 24 hours after the run;</description></item>
+    /// <item><description>is at least 12 hours after the run;</description></item>
     /// <item><description>is after <paramref name="after"/>, when it is given;</description></item>
     /// <item>
     /// <description>is at least 24 hours from every kickoff in <paramref name="clubKickoffs"/>;</description>
@@ -69,7 +70,7 @@ public static class MatchDateRule
     /// Picks the date of a match that must fall on one of a set of weekdays. The candidates are the planned date and
     /// then the same time of day one day later, two days later and so on; a candidate on a weekday outside
     /// <paramref name="days"/> is skipped. Every other rule is that of <see cref="Pick"/>: the first candidate wins
-    /// that is at least 24 hours after the run, after <paramref name="after"/> when it is given, at least 24 hours from
+    /// that is at least 12 hours after the run, after <paramref name="after"/> when it is given, at least 24 hours from
     /// every kickoff in <paramref name="clubKickoffs"/> and earlier than <paramref name="before"/> when it is given;
     /// reaching <paramref name="before"/> ends the search with no date. Exactly 24 hours apart is allowed, and all
     /// dates are UTC.
@@ -129,7 +130,7 @@ public static class MatchDateRule
         IReadOnlySet<DayOfWeek>? days)
     {
         TimeSpan gap = TimeSpan.FromHours(CalendarTemplate.MinHoursBetweenKickoffs);
-        DateTime earliest = runTime + gap;
+        DateTime earliest = runTime + TimeSpan.FromHours(CalendarTemplate.MinHoursFromRunToKickoff);
         DateTime limit = LatestThatMatters(planned, earliest, after, clubKickoffs, gap).AddDays(MaxDaysAhead);
 
         for (DateTime candidate = planned; candidate <= limit; candidate += step)

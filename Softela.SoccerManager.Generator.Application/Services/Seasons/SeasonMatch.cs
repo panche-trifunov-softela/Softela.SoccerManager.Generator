@@ -22,6 +22,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.Seasons;
 /// <param name="AwayGoals">The goals scored for the away club, own goals of the opponent included.</param>
 /// <param name="HomeShootoutGoals">The home club's shootout goals, or null when there was no shootout.</param>
 /// <param name="AwayShootoutGoals">The away club's shootout goals, or null when there was no shootout.</param>
+/// <param name="GroupNumber">
+/// The World Cup group of a qualifier or finals group match, or null for every other match.
+/// </param>
 public sealed record SeasonMatch(
     int Id,
     int? CompetitionId,
@@ -35,7 +38,8 @@ public sealed record SeasonMatch(
     int HomeGoals,
     int AwayGoals,
     int? HomeShootoutGoals,
-    int? AwayShootoutGoals)
+    int? AwayShootoutGoals,
+    byte? GroupNumber)
 {
     /// <summary>
     /// Gets the league team id of the club that won the match, or null when there is no winner. A match has a winner
