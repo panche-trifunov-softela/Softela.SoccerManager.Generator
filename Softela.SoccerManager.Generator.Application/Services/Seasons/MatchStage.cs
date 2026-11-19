@@ -58,4 +58,10 @@ internal enum MatchStage : byte
     /// backend's <c>MatchStage.ContinentalFinal</c>.
     /// </summary>
     ContinentalFinal = 9,
+
+    /// <summary>
+    /// A match of a World Cup qualifier group: a single match, its round number is the matchday, its leg is null and
+    /// its group number is set. The value is the backend's <c>MatchStage.WorldCupQualifierGroup</c>.
+    /// </summary>
+    WorldCupQualifierGroup = 10,
 }

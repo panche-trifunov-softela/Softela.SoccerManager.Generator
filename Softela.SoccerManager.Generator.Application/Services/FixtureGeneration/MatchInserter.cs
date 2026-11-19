@@ -88,6 +88,7 @@ internal sealed class MatchInserter
                 stage: (byte)match.Stage,
                 roundNumber: match.RoundNumber,
                 leg: match.Leg,
+                groupNumber: match.GroupNumber,
                 createdAt: runTime,
                 modifiedAt: runTime,
                 createdBy: GeneratorAudit.UserId,

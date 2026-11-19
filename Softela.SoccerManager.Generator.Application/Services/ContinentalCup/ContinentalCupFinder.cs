@@ -4,8 +4,8 @@ namespace Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
 
 /// <summary>
 /// Finds the continental cups among a league's competitions. The league phase step and the knockout step both need the
-/// same two cups, so the shape that identifies them lives here once. It also tells whether a cup has matches in a
-/// season.
+/// same two cups, so the shape that identifies them lives here once. It also tells whether a competition has matches
+/// in a season, which the World Cup qualifier step asks of the national competition too.
 /// </summary>
 internal static class ContinentalCupFinder
 {
@@ -29,12 +29,13 @@ internal static class ContinentalCupFinder
     }
 
     /// <summary>
-    /// Tells whether a read of the league's matches has a match of a season in a cup.
+    /// Tells whether a read of the league's matches has a match of a season in a competition: a continental cup, or the
+    /// national competition.
     /// </summary>
     /// <param name="matches">The league's matches.</param>
     /// <param name="seasonId">The season's id.</param>
-    /// <param name="cup">The cup's competition.</param>
-    /// <returns>True when the cup has a match in the season.</returns>
+    /// <param name="cup">The competition to look in.</param>
+    /// <returns>True when the competition has a match in the season.</returns>
     internal static bool HasMatchInSeason(
         IEnumerable<GetMatchesResult> matches,
         int seasonId,

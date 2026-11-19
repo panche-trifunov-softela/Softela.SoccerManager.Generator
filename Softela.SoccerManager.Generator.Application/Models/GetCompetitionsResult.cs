@@ -27,8 +27,8 @@ public sealed class GetCompetitionsResult
     public byte Format { get; set; }
 
     /// <summary>
-    /// True for a national competition, a League's World Cup (backend V1_0_0_68). Until the backend returns the column
-    /// it reads false.
+    /// True for a League's national competition, its World Cup, whose clubs are national teams (backend V1_0_0_68);
+    /// false for every club competition.
     /// </summary>
     public bool IsNational { get; set; }
 

@@ -15,13 +15,21 @@ continental knockout step needs nothing more than the domestic cup step does: it
 `dbo.InsertStagedMatch`, with stages 5 to 9 and no round number. The promotion playoff step needs the same, with
 stages 2 and 3, and no round number and no leg.
 
+The World Cup qualifier step needs the backend's scripts up to `V1_0_0_69`: `V1_0_0_66` adds the confederation of a
+national team, `V1_0_0_68` puts the national teams on a league's roster and `V1_0_0_69` moves the national matches into
+`dbo.Matches`, with the group number that `dbo.InsertStagedMatch` writes. It reads through three procedures:
+`dbo.GetLeagueNationalTeams` and `dbo.GetNationalTeamPlayerRatings`, which need the scripts up to `V1_0_0_69`, and
+`dbo.GetNationalTeamConfederations`, which needs `V1_0_0_66`. Deploy the backend first: without a procedure the step
+refuses with a log line, and tries again at the next tick.
+
 ## GenerateLeagueFixtures
 
 A timer function with the schedule `0 0 */6 * * *`: every six hours, at 00:00, 06:00, 12:00 and 18:00 host time.
 
 For each league, in id order, it takes the newest season (the highest SeasonNumber) and its divisions (the competitions
-with an Order above 0), and runs five steps for it, one after the other: the league matches step, then the domestic
-cup step, then the continental cup step, then the continental knockout step, and then the promotion playoff step.
+with an Order above 0), and runs six steps for it, one after the other: the league matches step, then the domestic
+cup step, then the continental cup step, then the continental knockout step, then the World Cup qualifier step, and
+then the promotion playoff step.
 
 The league matches step writes every league match of the season (two legs, on Thursdays and Sundays at 20:00 UTC,
 from the first Thursday after the day of the run that is at least 24 hours after the league's latest match) plus
@@ -137,8 +145,8 @@ It refuses the cups, which is logged as an error and tried again at every tick, 
 
 A guest in a continental cup has a standings row, so it cannot be deleted from the league.
 
-A failed write, of league matches, of cup ties, of continental cups, of their knockouts or of promotion playoffs, rolls
-that write back and fails the run, so the host reports it.
+A failed write, of league matches, of cup ties, of continental cups, of their knockouts, of World Cup qualifiers or of
+promotion playoffs, rolls that write back and fails the run, so the host reports it.
 Everything written before it stays written, and the next tick starts over from the first league.
 
 ## Continental knockouts
@@ -226,6 +234,93 @@ Its log lines each start with the league and the season, and are:
 - error, "the continental knockouts of ... are refused: ... The next tick tries again";
 - error, "the continental knockouts are refused: ... The next tick tries again", for both cups;
 - information, "another run holds this season's lock, so this run leaves the continental knockouts to it".
+
+## World Cup qualifiers
+
+The World Cup qualifier step runs after the continental knockout step and before the promotion playoff step. It writes
+the group matches of the qualifiers of the league's national competition, the World Cup. It reads the season again
+inside its own lock, as the steps before it do, so it sees the league matches that were written on the same tick. The
+national competition is the league's one competition with Order 0, IsNational 1 and no age limit (MaxAgeAllowed NULL);
+a league with none plays no qualifiers, and a league with more than one is refused.
+
+The qualifiers are written once the season's league matches exist and the calendar has a World Cup (it needs 12 clubs
+or more in a division). A nation enters when it has 18 or more players, rated or not, and it is on the league's roster,
+with a confederation. Its strength is the sum of its 18 best ratings, a missing rating counting 0. Nations that have
+enough players but no confederation, or are not on the roster, are left out, and the step logs one warning for each
+kind that lists them. This step writes only the qualifier groups; the finals are not written by it.
+
+Each confederation is drawn on its own, from the strongest nation to the weakest, and the draw is seeded by the season:
+
+- one entrant has no group and keeps a direct place; the step logs that as information;
+- two entrants play one group of 2;
+- five entrants play one group of 5, as a single round robin;
+- otherwise there is one group for every 4 entrants, rounded up, so the groups hold 4 or 3 nations: pot 1 is the
+  strongest nations, as many as there are groups, pot 2 the next ones, and so on, and the last pot may be short. Each
+  pot is shuffled and its nations go to the groups in turn, so every group holds one nation of each pot.
+
+The groups are numbered from 1 over the whole draw: the confederations in the order AFC, CAF, CONCACAF, CONMEBOL, OFC,
+UEFA, and each confederation's groups in the order they were drawn. A group plays a round robin: two legs (home and
+away) for a group of 4, 3 or 2, and one leg for a group of 5.
+
+Every match is a match of the national competition with these values:
+
+- Stage 10, the qualifier group stage, and the group's number in GroupNumber;
+- RoundNumber is the group's round: 1 to 6 for a group of 4 or 3 (a group of 3 has a bye in each round), 1 and 2 for a
+  group of 2, and 1 to 5 for a group of 5;
+- Leg is empty, and so is the referee;
+- two MatchTeamStatistics rows at zero, the home nation first, on the nations' roster entries;
+- no Standings rows: a national competition has none.
+
+A match is on its round's calendar date, a Friday at 20:00 UTC, or on a later Friday that is at least 24 hours after
+the tick, at least 24 hours from every other match of both nations this season, and after the round before. The whole
+group stage ends before the first day of the World Cup finals. The calendar has one Friday for each of the 6 rounds.
+
+A written draw is frozen: once the national competition has a match of the season, later ticks only log that the
+qualifiers are already written, so later changes to the nations or their players do not change it.
+
+It skips the qualifiers, and tries again at the next tick, when:
+
+- the league has no national competition;
+- the league matches are not written yet;
+- the calendar has no World Cup at the divisions' size;
+- another run holds the season's lock.
+
+It warns, and tries again at the next tick, when:
+
+- the season plays without qualifiers: the groups can no longer be placed before the first day of the finals; this
+  warning repeats at every tick;
+- no confederation has two or more nations that can enter, so no qualifiers are written.
+
+It refuses the qualifiers, which is logged as an error and tried again at every tick, when:
+
+- the league has two or more national competitions: exactly one is needed;
+- the backend has no `dbo.GetLeagueNationalTeams`, `dbo.GetNationalTeamConfederations` or
+  `dbo.GetNationalTeamPlayerRatings`: deploy the backend first;
+- the national team reads do not fit together: a rostered nation, or a nation with 18 or more players, is missing from
+  the national teams read, a nation is on the roster or in that read twice, or a nation with 18 or more players has a
+  confederation that is not one of the six;
+- a league match was moved by hand, or the season's matches do not fit the league's clubs or its calendar in another
+  way; the error says what is wrong.
+
+Its log lines each start with the league and the season, and are:
+
+- information, "the league has no national competition ..., so it plays no World Cup qualifiers";
+- information, "the World Cup qualifiers of ... are already written, so this step has nothing to add";
+- information, "the calendar has no World Cup at ... clubs per division, so the national competition ... gets no
+  qualifiers";
+- information, "... is AFC's only entrant, so it plays no qualifier and keeps a direct place";
+- information, "the league matches are not written yet, so the World Cup qualifiers wait for a later tick";
+- information, "wrote the World Cup qualifiers of ...: n matches in n groups, n entrants (AFC 4, CAF 12, ...), ... to
+  ... UTC";
+- warning, "the season plays without World Cup qualifiers: they can no longer be placed before ... UTC";
+- warning, "nations with 18 or more players but no confederation are left out of the World Cup qualifiers: ...";
+- warning, "nations with 18 or more players are not on this league's roster, so they play no World Cup qualifiers: ...";
+- warning, "no confederation has two or more nations that can enter, so no World Cup qualifiers are written";
+- error, "the World Cup qualifiers are refused: ... The next tick tries again";
+- information, "another run holds this season's lock, so this run leaves the World Cup qualifiers to it".
+
+To write the qualifiers again, delete the national competition's matches for the season (see "Writing a season
+again"). The next tick draws them again from today's nations.
 
 ## Promotion playoffs
 
@@ -397,10 +492,11 @@ Find the id of the league's domestic cup:
 SELECT Id, Name FROM dbo.Competitions WHERE LeagueId = <league id> AND [Order] = 0 AND IsDomestic = 1 AND IsNational = 0 AND Format = 1 AND MaxAgeAllowed IS NULL;
 ```
 
-Delete the season's division and cup matches, and the next tick writes them again, the cup included:
+Delete the season's division, cup and national competition matches, and the next tick writes them again, the cup and
+the World Cup qualifiers included. A national competition has no Standings, so nothing else is deleted for it:
 
 ```sql
-DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.CompetitionId WHERE m.SeasonId = <season id> AND (c.[Order] > 0 OR c.Id = <domestic cup id>);
+DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.CompetitionId WHERE m.SeasonId = <season id> AND (c.[Order] > 0 OR c.Id = <domestic cup id> OR c.IsNational = 1);
 ```
 
 To keep the league matches and draw the cup again, delete only the cup's matches. The next tick draws the cup again,
@@ -408,6 +504,13 @@ from today's squads:
 
 ```sql
 DELETE FROM dbo.Matches WHERE SeasonId = <season id> AND CompetitionId = <domestic cup id>;
+```
+
+To keep the league matches and draw the World Cup qualifiers again, delete only the national competition's matches. The
+next tick draws them again, from today's nations and players:
+
+```sql
+DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.CompetitionId WHERE m.SeasonId = <season id> AND c.IsNational = 1;
 ```
 
 The deletes cascade to each match's statistics, tactics, lineups, substitutions, player statistics and shootout kicks.
