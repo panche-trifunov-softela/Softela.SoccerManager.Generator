@@ -22,6 +22,13 @@ internal static class CalendarTemplate
 
     public const int MinHoursBetweenKickoffs = 24;
 
+    /// <summary>
+    /// The least time between a run and the kickoff of a match that run writes: a match is dated at least this many
+    /// hours after the run. The 24 hours between two kickoffs of one club or nation are the separate
+    /// <see cref="MinHoursBetweenKickoffs"/>.
+    /// </summary>
+    public const int MinHoursFromRunToKickoff = 12;
+
     // Two match days in a row are 24 hours apart only because every match kicks off at the same time.
     public static readonly TimeOnly KickoffTime = new(20, 0);
 

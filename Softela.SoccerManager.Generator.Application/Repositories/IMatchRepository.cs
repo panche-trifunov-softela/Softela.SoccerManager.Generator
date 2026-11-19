@@ -59,8 +59,9 @@ public interface IMatchRepository
         Guid modifiedBy);
 
     /// <summary>
-    /// Inserts one staged match, a match with a stage: a cup round, a playoff, a continental stage or a World Cup
-    /// qualifier group. The parameters mirror those of <c>dbo.InsertStagedMatch</c>.
+    /// Inserts one staged match, a match with a stage: a cup round, a playoff, a continental stage, a World Cup
+    /// qualifier group, or a World Cup finals group or knockout stage. The parameters mirror those of
+    /// <c>dbo.InsertStagedMatch</c>.
     /// </summary>
     /// <param name="seasonId">The identifier of the season the match belongs to.</param>
     /// <param name="competitionId">The identifier of the competition the match is played in.</param>

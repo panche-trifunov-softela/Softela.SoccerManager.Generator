@@ -5,7 +5,8 @@ namespace Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
 /// <summary>
 /// Finds the continental cups among a league's competitions. The league phase step and the knockout step both need the
 /// same two cups, so the shape that identifies them lives here once. It also tells whether a competition has matches
-/// in a season, which the World Cup qualifier step asks of the national competition too.
+/// in a season, which the World Cup steps ask of the national competition too. The World Cup finals steps also use the
+/// cups to find the continental final that the finals start after.
 /// </summary>
 internal static class ContinentalCupFinder
 {

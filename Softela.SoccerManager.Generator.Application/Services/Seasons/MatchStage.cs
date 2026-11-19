@@ -2,7 +2,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 /// <summary>
 /// The stage of a staged match, as the matches table stores it. It mirrors the backend's <c>MatchStage</c> enum
-/// (<c>SoccerManager.Domain\Enums\MatchStage.cs</c>), and lists only the stages the generator writes.
+/// (<c>SoccerManager.Domain\Enums\MatchStage.cs</c>), and lists every stage the generator writes.
 /// </summary>
 internal enum MatchStage : byte
 {
@@ -64,4 +64,40 @@ internal enum MatchStage : byte
     /// its group number is set. The value is the backend's <c>MatchStage.WorldCupQualifierGroup</c>.
     /// </summary>
     WorldCupQualifierGroup = 10,
+
+    /// <summary>
+    /// A match of a World Cup finals group: a single match, its round number is the matchday, its leg is null and its
+    /// group number is set. The value is the backend's <c>MatchStage.WorldCupGroup</c>.
+    /// </summary>
+    WorldCupGroup = 11,
+
+    /// <summary>
+    /// A match of the World Cup finals' round of 16: a single match, its round number, its leg and its group number are
+    /// null. The value is the backend's <c>MatchStage.WorldCupRoundOf16</c>.
+    /// </summary>
+    WorldCupRoundOf16 = 12,
+
+    /// <summary>
+    /// A quarter-final of the World Cup finals: a single match, its round number, its leg and its group number are
+    /// null. The value is the backend's <c>MatchStage.WorldCupQuarterFinal</c>.
+    /// </summary>
+    WorldCupQuarterFinal = 13,
+
+    /// <summary>
+    /// A semi-final of the World Cup finals: a single match, its round number, its leg and its group number are null.
+    /// The value is the backend's <c>MatchStage.WorldCupSemiFinal</c>.
+    /// </summary>
+    WorldCupSemiFinal = 14,
+
+    /// <summary>
+    /// The World Cup third-place match: a single match, its round number, its leg and its group number are null. The
+    /// value is the backend's <c>MatchStage.WorldCupThirdPlace</c>.
+    /// </summary>
+    WorldCupThirdPlace = 15,
+
+    /// <summary>
+    /// The World Cup final: a single match, its round number, its leg and its group number are null. The value is the
+    /// backend's <c>MatchStage.WorldCupFinal</c>.
+    /// </summary>
+    WorldCupFinal = 16,
 }

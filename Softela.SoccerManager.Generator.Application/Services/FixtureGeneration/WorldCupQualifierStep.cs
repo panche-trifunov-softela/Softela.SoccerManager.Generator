@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Models;
 using Softela.SoccerManager.Generator.Application.Repositories;
-using Softela.SoccerManager.Generator.Application.Services.Calendar;
 using Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
 using Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
@@ -16,7 +15,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// with the statistics rows of both nations, once the season's league matches exist. It reads the season again inside
 /// its own lock, so it sees the league matches that the steps before it wrote, and it refuses a competition it cannot
 /// write without ever failing the run. Written qualifiers are never changed: later ticks leave them as they are. The
-/// finals that follow them are not written by this step.
+/// finals that follow them are written by the World Cup finals group step and the World Cup knockout step.
 /// </summary>
 internal sealed class WorldCupQualifierStep : ILeagueStep
 {
@@ -67,10 +66,7 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
     /// <returns>A task that completes once the qualifiers have been handled.</returns>
     public async Task RunAsync(LeagueStepContext context, CancellationToken cancellationToken)
     {
-        List<GetCompetitionsResult> nationals = context.Competitions
-            .Where(IsNationalCompetition)
-            .OrderBy(competition => competition.Id)
-            .ToList();
+        IReadOnlyList<GetCompetitionsResult> nationals = NationalCompetitionFinder.Find(context.Competitions);
 
         if (nationals.Count == 0)
         {
@@ -149,29 +145,6 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
     }
 
     /// <summary>
-    /// Tells whether a competition has the shape of a league's national competition, the World Cup: it is not a
-    /// division, it is national and it has no age limit.
-    /// </summary>
-    /// <param name="competition">The competition.</param>
-    /// <returns>True when the competition is shaped like a national competition.</returns>
-    private static bool IsNationalCompetition(GetCompetitionsResult competition)
-    {
-        return competition.Order == 0
-            && competition.IsNational
-            && competition.MaxAgeAllowed is null;
-    }
-
-    /// <summary>
-    /// Names a confederation for a log line, in capitals.
-    /// </summary>
-    /// <param name="confederation">The confederation.</param>
-    /// <returns>The confederation's name in capitals, such as CONCACAF.</returns>
-    private static string LabelOf(Confederation confederation)
-    {
-        return confederation.ToString().ToUpperInvariant();
-    }
-
-    /// <summary>
     /// Reads the season again inside the lock and decides whether the qualifiers are due, and plans them when they are.
     /// It writes nothing. A refusal is thrown to the caller, which logs it; every other reason to write nothing is
     /// logged here.
@@ -195,23 +168,18 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
             await _matchRepository.GetScoresBySeasonIdAsync(context.Season.Id);
 
         IReadOnlyList<SeasonMatch> season = SeasonMatchJoiner.Join(seasonMatches, scores);
-        List<int> divisionIds = context.Divisions.Select(division => division.Id).ToList();
-        List<SeasonMatch> leagueMatches = DomesticCupLeagueReader.LeagueMatchesOf(season, divisionIds);
+        WorldCupCalendarReading reading = WorldCupCalendarReader.Read(context.Divisions, season);
 
-        if (leagueMatches.Count == 0)
+        if (reading.Calendar is not { } calendar)
         {
             LogWaitingForLeague(context);
 
             return null;
         }
 
-        Dictionary<int, int> divisionOfClub = DomesticCupLeagueReader.MapClubsToDivisions(leagueMatches);
-        List<int> clubCounts = DomesticCupLeagueReader.CountClubsPerDivision(divisionIds, divisionOfClub);
-        SeasonCalendar calendar = DomesticCupLeagueReader.RebuildCalendar(clubCounts, leagueMatches);
-
         if (calendar.WorldCupQualifierMatchdays.Count == 0 || calendar.WorldCupFinalsMatchdays.Count == 0)
         {
-            LogNoWorldCupCalendar(context, national, clubCounts);
+            LogNoWorldCupCalendar(context, national, reading.ClubCounts);
 
             return null;
         }
@@ -260,7 +228,7 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
         }
 
         return new QualifierPlan(
-            ToStagedMatches(national, fixtures, kickoffs),
+            WorldCupStagedMatches.Of(national, fixtures, kickoffs, MatchStage.WorldCupQualifierGroup),
             groups.Count,
             groups.Sum(group => group.LeagueTeamIds.Count),
             DescribeEntrants(groups),
@@ -278,56 +246,14 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
     /// <exception cref="ArgumentException">Thrown when the selector refuses what the reads hold.</exception>
     private async Task<QualifierEntrants> ReadEntrantsAsync(LeagueStepContext context)
     {
-        IReadOnlyList<GetLeagueNationalTeamsResult> roster =
-            await _nationalTeamRepository.GetLeagueNationalTeamsAsync(context.League.Id);
+        NationalTeamReads reads = await NationalTeamReader.ReadAsync(_nationalTeamRepository, context.League.Id);
 
-        IReadOnlyList<GetNationalTeamConfederationsResult> confederations =
-            await _nationalTeamRepository.GetConfederationsAsync();
-
-        IReadOnlyList<GetNationalTeamPlayerRatingsResult> ratings =
-            await _nationalTeamRepository.GetPlayerRatingsAsync();
-
-        QualifierEntrants entrants = QualifierEntrantSelector.Select(roster, confederations, ratings);
+        QualifierEntrants entrants = QualifierEntrantSelector.Select(reads.Roster, reads.Confederations, reads.Ratings);
 
         LogNationsWithoutConfederation(context, entrants.WithoutConfederation);
         LogNationsNotOnRoster(context, entrants.NotOnRoster);
 
         return entrants;
-    }
-
-    /// <summary>
-    /// Turns the matches of the groups into the matches to insert, in the order given.
-    /// </summary>
-    /// <param name="national">The league's national competition.</param>
-    /// <param name="fixtures">The matches with the number of their group.</param>
-    /// <param name="kickoffs">The kickoff of each match, in the order of <paramref name="fixtures"/>.</param>
-    /// <returns>One staged match for each fixture.</returns>
-    /// <exception cref="OverflowException">
-    /// Thrown when a matchday does not fit in a byte, which no group reaches.
-    /// </exception>
-    private static List<StagedMatch> ToStagedMatches(
-        GetCompetitionsResult national,
-        IReadOnlyList<(byte GroupNumber, ContinentalFixture Fixture)> fixtures,
-        IReadOnlyList<DateTime> kickoffs)
-    {
-        List<StagedMatch> matches = [];
-
-        for (int index = 0; index < fixtures.Count; index++)
-        {
-            ContinentalFixture fixture = fixtures[index].Fixture;
-
-            matches.Add(new StagedMatch(
-                national.Id,
-                kickoffs[index],
-                MatchStage.WorldCupQualifierGroup,
-                checked((byte)fixture.Matchday),
-                Leg: null,
-                fixture.HomeLeagueTeamId,
-                fixture.AwayLeagueTeamId,
-                fixtures[index].GroupNumber));
-        }
-
-        return matches;
     }
 
     /// <summary>
@@ -342,7 +268,7 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
             .OrderBy(confederation => confederation.Key)
             .Select(confederation => string.Create(
                 CultureInfo.InvariantCulture,
-                $"{LabelOf(confederation.Key)} {confederation.Sum(group => group.LeagueTeamIds.Count)}"));
+                $"{ConfederationLabel.Of(confederation.Key)} {confederation.Sum(group => group.LeagueTeamIds.Count)}"));
 
         return string.Join(", ", parts);
     }
@@ -605,7 +531,7 @@ internal sealed class WorldCupQualifierStep : ILeagueStep
                 context.Season.Id,
                 nation.Name,
                 nation.NationalTeamId,
-                LabelOf(confederation.Key));
+                ConfederationLabel.Of(confederation.Key));
         }
     }
 

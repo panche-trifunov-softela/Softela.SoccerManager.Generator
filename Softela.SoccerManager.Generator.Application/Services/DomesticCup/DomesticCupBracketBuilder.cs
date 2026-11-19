@@ -86,11 +86,11 @@ public static class DomesticCupBracketBuilder
         // The order of the three shuffles is fixed: the clubs without a bye, the bye clubs, the round 2 pairs.
         random.Shuffle(others);
 
-        List<List<KnockoutTie>> rounds = new() { BuildFirstRound(others, firstRoundTies) };
+        List<IReadOnlyList<KnockoutTie>> rounds = new() { BuildFirstRound(others, firstRoundTies) };
 
         if (roundCount == 1)
         {
-            return ToBracket(rounds);
+            return new KnockoutBracket(rounds);
         }
 
         random.Shuffle(byes);
@@ -99,10 +99,10 @@ public static class DomesticCupBracketBuilder
 
         for (int round = 3; round <= roundCount; round++)
         {
-            rounds.Add(BuildLaterRound(round, 1 << (roundCount - round)));
+            rounds.Add(KnockoutLaterRound.Build(round, 1 << (roundCount - round)));
         }
 
-        return ToBracket(rounds);
+        return new KnockoutBracket(rounds);
     }
 
     /// <summary>
@@ -171,37 +171,5 @@ public static class DomesticCupBracketBuilder
         }
 
         return ties;
-    }
-
-    /// <summary>
-    /// Builds a round after round 2: each tie takes the winners of two neighbouring ties of the round before.
-    /// </summary>
-    /// <param name="round">The 1-based number of the round; it is at least 3.</param>
-    /// <param name="tieCount">The number of ties in the round.</param>
-    /// <returns>The ties of the round, numbered from 1.</returns>
-    private static List<KnockoutTie> BuildLaterRound(int round, int tieCount)
-    {
-        List<KnockoutTie> ties = new();
-
-        for (int tie = 1; tie <= tieCount; tie++)
-        {
-            ties.Add(new KnockoutTie(
-                round,
-                tie,
-                KnockoutSide.WinnerOf(round - 1, (2 * tie) - 1),
-                KnockoutSide.WinnerOf(round - 1, 2 * tie)));
-        }
-
-        return ties;
-    }
-
-    /// <summary>
-    /// Wraps the built rounds in a bracket.
-    /// </summary>
-    /// <param name="rounds">The rounds, round 1 first.</param>
-    /// <returns>The bracket.</returns>
-    private static KnockoutBracket ToBracket(List<List<KnockoutTie>> rounds)
-    {
-        return new KnockoutBracket(rounds.Select(round => (IReadOnlyList<KnockoutTie>)round).ToList());
     }
 }

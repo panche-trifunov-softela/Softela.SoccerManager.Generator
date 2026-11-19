@@ -27,4 +27,10 @@ public sealed class GetMatchesBySeasonResult : GetMatchesResult
     /// The leg of a tie the match is, or <see langword="null"/> for a single match.
     /// </summary>
     public byte? Leg { get; set; }
+
+    /// <summary>
+    /// The World Cup group the match belongs to, for a qualifier or finals group match, or <see langword="null"/>
+    /// otherwise.
+    /// </summary>
+    public byte? GroupNumber { get; set; }
 }
