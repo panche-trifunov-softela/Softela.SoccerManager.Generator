@@ -8,6 +8,9 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 /// </summary>
 /// <param name="League">The league.</param>
 /// <param name="Season">The newest season of the league, the one with the highest SeasonNumber.</param>
+/// <param name="Seasons">
+/// Every season of the league, as read at the start of the tick, in ascending SeasonNumber; Season is the last of them.
+/// </param>
 /// <param name="Divisions">
 /// The league's competitions with an Order above 0, in ascending Order; there is at least one.
 /// </param>
@@ -25,6 +28,7 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 internal sealed record LeagueStepContext(
     GetLeaguesResult League,
     GetSeasonsResult Season,
+    IReadOnlyList<GetSeasonsResult> Seasons,
     IReadOnlyList<GetCompetitionsResult> Divisions,
     IReadOnlyList<GetCompetitionsResult> Competitions,
     IReadOnlyList<GetTeamsResult> Teams,

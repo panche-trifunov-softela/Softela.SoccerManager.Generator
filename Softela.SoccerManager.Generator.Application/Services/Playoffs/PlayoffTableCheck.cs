@@ -8,18 +8,22 @@ namespace Softela.SoccerManager.Generator.Application.Services.Playoffs;
 /// <summary>
 /// Checks that a division's Standings agree with its league matches before the playoff is drawn from them. The
 /// playoff's places come from the matches, so a Standings row that disagrees with them shows that a person has changed
-/// one side by hand and has not yet changed the other.
+/// one side by hand and has not yet changed the other. <see cref="CheckStructure"/> checks that the Standings and the
+/// league matches describe the same clubs and the same fixtures, and <see cref="Check"/> runs it and then also checks
+/// the Standings' numbers against the matches.
 /// </summary>
 public static class PlayoffTableCheck
 {
     /// <summary>
-    /// The fix that undoes the league's matches and Standings, as the readme describes it.
+    /// The fix that undoes the league's matches and Standings, as the readme describes it. It is the fix that
+    /// <see cref="Check"/> names unless the caller gives another.
     /// </summary>
-    private const string Reset = "reset the season (the readme's 'Writing a season again')";
+    internal const string DefaultOtherFix = "reset the season (the readme's 'Writing a season again')";
 
     /// <summary>
-    /// Checks the Standings of a division against its league matches. The checks run in this order, and the first one
-    /// that fails refuses; clubs are taken in league team id order, so the same fault always gives the same message:
+    /// Checks the Standings of a division against its league matches. It runs <see cref="CheckStructure"/> and then
+    /// checks the numbers; the checks run in this order, and the first one that fails refuses; clubs are taken in
+    /// league team id order, so the same fault always gives the same message:
     /// <list type="number">
     /// <item>
     /// <description>
@@ -42,9 +46,12 @@ public static class PlayoffTableCheck
     /// <param name="division">The division, named in a refusal.</param>
     /// <param name="standings">The division's Standings rows.</param>
     /// <param name="leagueMatches">The division's league matches, all finished and with both clubs.</param>
+    /// <param name="otherFix">
+    /// The fix a refusal of the first three checks offers besides fixing the Standings, after the word "or".
+    /// </param>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="division"/>, <paramref name="standings"/> or <paramref name="leagueMatches"/> is
-    /// null.
+    /// Thrown when <paramref name="division"/>, <paramref name="standings"/>, <paramref name="leagueMatches"/> or
+    /// <paramref name="otherFix"/> is null.
     /// </exception>
     /// <exception cref="InvalidOperationException">
     /// Thrown when a league match lacks a club, which the caller was to have checked.
@@ -53,24 +60,66 @@ public static class PlayoffTableCheck
     public static void Check(
         GetCompetitionsResult division,
         IReadOnlyList<GetStandingsResult> standings,
-        IReadOnlyList<SeasonMatch> leagueMatches)
+        IReadOnlyList<SeasonMatch> leagueMatches,
+        string otherFix = DefaultOtherFix)
+    {
+        CheckStructure(division, standings, leagueMatches, otherFix);
+        CheckNumbers(division, standings, leagueMatches);
+    }
+
+    /// <summary>
+    /// Checks that the Standings of a division and its league matches describe the same clubs and fixtures: the first
+    /// three checks of <see cref="Check"/>, in the same order and with the same messages. It does not read the
+    /// Standings' wins, draws, losses or goals.
+    /// </summary>
+    /// <param name="division">The division, named in a refusal.</param>
+    /// <param name="standings">The division's Standings rows.</param>
+    /// <param name="leagueMatches">The division's league matches, all with both clubs.</param>
+    /// <param name="otherFix">
+    /// The fix a refusal offers besides fixing the Standings, after the word "or".
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="division"/>, <paramref name="standings"/>, <paramref name="leagueMatches"/> or
+    /// <paramref name="otherFix"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a league match lacks a club, which the caller was to have checked.
+    /// </exception>
+    /// <exception cref="SeasonRefusedException">Thrown when the Standings disagree with the league matches.</exception>
+    public static void CheckStructure(
+        GetCompetitionsResult division,
+        IReadOnlyList<GetStandingsResult> standings,
+        IReadOnlyList<SeasonMatch> leagueMatches,
+        string otherFix)
     {
         ArgumentNullException.ThrowIfNull(division);
         ArgumentNullException.ThrowIfNull(standings);
         ArgumentNullException.ThrowIfNull(leagueMatches);
+        ArgumentNullException.ThrowIfNull(otherFix);
 
-        Dictionary<int, GetStandingsResult> rowOfClub = new();
-
-        foreach (GetStandingsResult row in standings)
-        {
-            rowOfClub.TryAdd(row.LeagueTeamId, row);
-        }
-
+        Dictionary<int, GetStandingsResult> rowOfClub = RowOfClub(standings);
         List<int> clubs = rowOfClub.Keys.Order().ToList();
 
-        CheckMatchCount(division, standings.Count, leagueMatches.Count);
-        CheckEveryClubHasRow(division, rowOfClub, leagueMatches);
-        CheckEveryPairMetOnce(division, clubs, leagueMatches);
+        CheckMatchCount(division, standings.Count, leagueMatches.Count, otherFix);
+        CheckEveryClubHasRow(division, rowOfClub, leagueMatches, otherFix);
+        CheckEveryPairMetOnce(division, clubs, leagueMatches, otherFix);
+    }
+
+    /// <summary>
+    /// Checks the numbers of the Standings against the league matches: the last two checks of <see cref="Check"/>.
+    /// The structure has been checked already.
+    /// </summary>
+    /// <param name="division">The division, named in a refusal.</param>
+    /// <param name="standings">The division's Standings rows.</param>
+    /// <param name="leagueMatches">The division's league matches, all finished and with both clubs.</param>
+    /// <exception cref="SeasonRefusedException">Thrown when a row's numbers differ from the matches'.</exception>
+    private static void CheckNumbers(
+        GetCompetitionsResult division,
+        IReadOnlyList<GetStandingsResult> standings,
+        IReadOnlyList<SeasonMatch> leagueMatches)
+    {
+        Dictionary<int, GetStandingsResult> rowOfClub = RowOfClub(standings);
+        List<int> clubs = rowOfClub.Keys.Order().ToList();
 
         foreach (int clubId in clubs)
         {
@@ -81,6 +130,23 @@ public static class PlayoffTableCheck
         {
             CheckGoals(division, rowOfClub[clubId], leagueMatches);
         }
+    }
+
+    /// <summary>
+    /// Takes the Standings rows by club. When a club has several rows the first one is kept.
+    /// </summary>
+    /// <param name="standings">The division's Standings rows.</param>
+    /// <returns>The Standings row of each club by league team id.</returns>
+    private static Dictionary<int, GetStandingsResult> RowOfClub(IReadOnlyList<GetStandingsResult> standings)
+    {
+        Dictionary<int, GetStandingsResult> rowOfClub = new();
+
+        foreach (GetStandingsResult row in standings)
+        {
+            rowOfClub.TryAdd(row.LeagueTeamId, row);
+        }
+
+        return rowOfClub;
     }
 
     /// <summary>
@@ -100,8 +166,13 @@ public static class PlayoffTableCheck
     /// <param name="division">The division.</param>
     /// <param name="clubCount">The number of Standings rows.</param>
     /// <param name="matchCount">The number of league matches.</param>
+    /// <param name="otherFix">The fix the refusal offers besides fixing the Standings.</param>
     /// <exception cref="SeasonRefusedException">Thrown when the numbers do not agree.</exception>
-    private static void CheckMatchCount(GetCompetitionsResult division, int clubCount, int matchCount)
+    private static void CheckMatchCount(
+        GetCompetitionsResult division,
+        int clubCount,
+        int matchCount,
+        string otherFix)
     {
         long expected = checked((long)clubCount * (clubCount - 1));
 
@@ -117,7 +188,7 @@ public static class PlayoffTableCheck
             + string.Create(
                 CultureInfo.InvariantCulture,
                 $"{clubCount} clubs of its Standings play {expected}: a Standings row is missing or extra, or league ")
-            + $"matches were added or deleted by hand. Fix the Standings, or {Reset}.");
+            + $"matches were added or deleted by hand. Fix the Standings, or {otherFix}.");
     }
 
     /// <summary>
@@ -126,11 +197,13 @@ public static class PlayoffTableCheck
     /// <param name="division">The division.</param>
     /// <param name="rowOfClub">The Standings row of each club by league team id.</param>
     /// <param name="leagueMatches">The league matches.</param>
+    /// <param name="otherFix">The fix the refusal offers besides fixing the Standings.</param>
     /// <exception cref="SeasonRefusedException">Thrown when a club has no row.</exception>
     private static void CheckEveryClubHasRow(
         GetCompetitionsResult division,
         Dictionary<int, GetStandingsResult> rowOfClub,
-        IReadOnlyList<SeasonMatch> leagueMatches)
+        IReadOnlyList<SeasonMatch> leagueMatches,
+        string otherFix)
     {
         int? missing = leagueMatches
             .SelectMany(match => new[] { match.HomeLeagueTeamId!.Value, match.AwayLeagueTeamId!.Value })
@@ -147,7 +220,7 @@ public static class PlayoffTableCheck
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"Club {clubId} plays league matches in {DivisionOf(division)} but has no Standings row there. ")
-            + $"Fix the Standings, or {Reset}.");
+            + $"Fix the Standings, or {otherFix}.");
     }
 
     /// <summary>
@@ -157,11 +230,13 @@ public static class PlayoffTableCheck
     /// <param name="division">The division.</param>
     /// <param name="clubs">The Standings clubs in league team id order.</param>
     /// <param name="leagueMatches">The league matches.</param>
+    /// <param name="otherFix">The fix the refusal offers besides adding or deleting the match.</param>
     /// <exception cref="SeasonRefusedException">Thrown when a pair met more or fewer times than once.</exception>
     private static void CheckEveryPairMetOnce(
         GetCompetitionsResult division,
         List<int> clubs,
-        IReadOnlyList<SeasonMatch> leagueMatches)
+        IReadOnlyList<SeasonMatch> leagueMatches,
+        string otherFix)
     {
         ILookup<(int Home, int Away), int> matchIdsOfPair = leagueMatches.ToLookup(
             match => (match.HomeLeagueTeamId!.Value, match.AwayLeagueTeamId!.Value),
@@ -188,7 +263,7 @@ public static class PlayoffTableCheck
                     string.Create(
                         CultureInfo.InvariantCulture,
                         $"Club {home} hosts club {away} {ids.Count} times in {DivisionOf(division)} instead of ")
-                    + $"once (matches {idsText}). {fix}, or {Reset}.");
+                    + $"once (matches {idsText}). {fix}, or {otherFix}.");
             }
         }
     }

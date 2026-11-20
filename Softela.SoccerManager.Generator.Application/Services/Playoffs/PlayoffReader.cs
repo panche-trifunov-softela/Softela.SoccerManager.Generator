@@ -1,8 +1,6 @@
 using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
 using Softela.SoccerManager.Generator.Application.Models;
-using Softela.SoccerManager.Generator.Application.Services.DomesticCup;
-using Softela.SoccerManager.Generator.Application.Services.Ranking;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.Playoffs;
@@ -16,7 +14,8 @@ namespace Softela.SoccerManager.Generator.Application.Services.Playoffs;
 public static class PlayoffReader
 {
     /// <summary>
-    /// The fix for a table that cannot be read from the league's matches.
+    /// The fix, as a sentence, that the refusal of a table's ranking ends with unless the caller gives another:
+    /// resetting the season.
     /// </summary>
     private const string ResetSeason = "Reset the season (the readme's 'Writing a season again').";
 
@@ -66,6 +65,13 @@ public static class PlayoffReader
     /// <param name="playoffMatches">The division's playoff matches, the ones with stage 2 or 3, in any order.</param>
     /// <param name="standings">The division's Standings rows.</param>
     /// <param name="stadiumOfClub">The stadium id of each club by league team id; null for a club with none.</param>
+    /// <param name="otherFix">
+    /// The fix that a refusal about the Standings' structure or the table's size offers besides fixing it, after the
+    /// word "or". It defaults to resetting the season.
+    /// </param>
+    /// <param name="rankFix">
+    /// The fix, as a sentence, that a refusal of the table's ranking ends with. It defaults to resetting the season.
+    /// </param>
     /// <returns>What the division's matches and Standings say about its playoff.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="ArgumentException">
@@ -86,7 +92,9 @@ public static class PlayoffReader
         IReadOnlyList<SeasonMatch> leagueMatches,
         IReadOnlyList<SeasonMatch> playoffMatches,
         IReadOnlyList<GetStandingsResult> standings,
-        IReadOnlyDictionary<int, int?> stadiumOfClub)
+        IReadOnlyDictionary<int, int?> stadiumOfClub,
+        string otherFix = PlayoffTableCheck.DefaultOtherFix,
+        string rankFix = ResetSeason)
     {
         ArgumentNullException.ThrowIfNull(division);
         ArgumentNullException.ThrowIfNull(places);
@@ -94,6 +102,8 @@ public static class PlayoffReader
         ArgumentNullException.ThrowIfNull(playoffMatches);
         ArgumentNullException.ThrowIfNull(standings);
         ArgumentNullException.ThrowIfNull(stadiumOfClub);
+        ArgumentNullException.ThrowIfNull(otherFix);
+        ArgumentNullException.ThrowIfNull(rankFix);
 
         if (places.PlayoffClubs is not (2 or 4))
         {
@@ -124,11 +134,16 @@ public static class PlayoffReader
             return Waiting(PlayoffReadingStatus.WaitingForStandings, finished, total, changedAt, playoff);
         }
 
-        PlayoffTableCheck.Check(division, standings, leagueMatches);
+        PlayoffTableCheck.Check(division, standings, leagueMatches, otherFix);
 
-        List<int> ranked = RankTable(seasonId, division, standings, leagueMatches);
+        List<int> ranked = SeasonTableRanker.RankDivision(
+            seasonId,
+            PlayoffTableCheck.DivisionOf(division),
+            standings,
+            leagueMatches,
+            rankFix);
 
-        CheckTableReachesPlayoff(division, places, ranked);
+        CheckTableReachesPlayoff(division, places, ranked, otherFix);
 
         IReadOnlyList<PlayoffTie> firstRound = PlayoffPairing.FirstRound(places, ranked, stadiumOfClub);
         SeasonMatch? final = playoff.FirstOrDefault(match => match.Stage == PlayoffStages.Final);
@@ -302,51 +317,20 @@ public static class PlayoffReader
     }
 
     /// <summary>
-    /// Ranks the division's table from its league matches.
-    /// </summary>
-    /// <param name="seasonId">The id of the season, which seeds the tie-break shuffle.</param>
-    /// <param name="division">The division.</param>
-    /// <param name="standings">The Standings rows, which name the clubs and have been checked.</param>
-    /// <param name="leagueMatches">The league matches, all finished and checked.</param>
-    /// <returns>The league team ids in place order, place 1 first.</returns>
-    /// <exception cref="SeasonRefusedException">Thrown when the ranking library refuses the matches.</exception>
-    private static List<int> RankTable(
-        int seasonId,
-        GetCompetitionsResult division,
-        IReadOnlyList<GetStandingsResult> standings,
-        IReadOnlyList<SeasonMatch> leagueMatches)
-    {
-        List<int> clubs = standings.Select(row => row.LeagueTeamId).Distinct().Order().ToList();
-
-        try
-        {
-            return TableRanking.Rank(seasonId, clubs, SeasonTableMatches.Of(leagueMatches))
-                .OrderBy(row => row.Place)
-                .Select(row => row.Id)
-                .ToList();
-        }
-        catch (ArgumentException exception) when (exception is not ArgumentNullException
-            and not ArgumentOutOfRangeException)
-        {
-            throw new SeasonRefusedException(
-                $"The table of {PlayoffTableCheck.DivisionOf(division)} refused its league matches: "
-                + $"{DomesticCupReader.ReasonOf(exception)} {ResetSeason}");
-        }
-    }
-
-    /// <summary>
     /// Checks that the table has the places the playoff spans.
     /// </summary>
     /// <param name="division">The division.</param>
     /// <param name="places">What the division's settings say about its table.</param>
     /// <param name="ranked">The ranked league team ids.</param>
+    /// <param name="otherFix">The fix the refusal offers besides fixing the division's settings.</param>
     /// <exception cref="SeasonRefusedException">
     /// Thrown when the table has fewer clubs than the playoff needs.
     /// </exception>
     private static void CheckTableReachesPlayoff(
         GetCompetitionsResult division,
         PromotionPlaces places,
-        List<int> ranked)
+        List<int> ranked,
+        string otherFix)
     {
         int lastPlace = checked(places.FirstPlayoffPlace + places.PlayoffClubs - 1);
 
@@ -362,7 +346,7 @@ public static class PlayoffReader
             + string.Create(
                 CultureInfo.InvariantCulture,
                 $"of {places.PlayoffClubs} clubs needs places {places.FirstPlayoffPlace} to {lastPlace}. ")
-            + "Fix the division's settings, or reset the season (the readme's 'Writing a season again').");
+            + $"Fix the division's settings, or {otherFix}.");
     }
 
     /// <summary>

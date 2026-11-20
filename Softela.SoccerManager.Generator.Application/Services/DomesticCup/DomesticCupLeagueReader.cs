@@ -12,6 +12,18 @@ namespace Softela.SoccerManager.Generator.Application.Services.DomesticCup;
 internal static class DomesticCupLeagueReader
 {
     /// <summary>
+    /// The fix that a refusal about the league's matches or dates offers besides fixing them by hand, after the word
+    /// "or". It resets a season that is still in play, whose league is then written again.
+    /// </summary>
+    internal const string DefaultOtherFix = "reset the season";
+
+    /// <summary>
+    /// The fix, as a sentence, that the refusal of a division with no league matches ends with. It resets a season that
+    /// is still in play, whose league is then written again.
+    /// </summary>
+    internal const string DefaultMissingDivisionFix = "Reset the season so its league is written again.";
+
+    /// <summary>
     /// Picks the league matches out of the season: the matches with no stage that belong to a division of the league,
     /// in kickoff order.
     /// </summary>
@@ -33,11 +45,17 @@ internal static class DomesticCupLeagueReader
     /// Finds the division of every club that plays a league match.
     /// </summary>
     /// <param name="leagueMatches">The league matches, in kickoff order.</param>
+    /// <param name="otherFix">
+    /// The fix that a refusal offers besides fixing the matches or the statistic rows by hand, after the word "or".
+    /// It defaults to resetting the season.
+    /// </param>
     /// <returns>The competition id of the division, by league team id.</returns>
     /// <exception cref="SeasonRefusedException">
     /// Thrown when a league match lacks a club, or a club plays in two divisions.
     /// </exception>
-    public static Dictionary<int, int> MapClubsToDivisions(List<SeasonMatch> leagueMatches)
+    public static Dictionary<int, int> MapClubsToDivisions(
+        List<SeasonMatch> leagueMatches,
+        string otherFix = DefaultOtherFix)
     {
         Dictionary<int, int> divisionOfClub = new();
 
@@ -49,7 +67,7 @@ internal static class DomesticCupLeagueReader
                     string.Create(
                         CultureInfo.InvariantCulture,
                         $"League match {match.Id} has no home or no away club, so the generator cannot read who plays ")
-                    + "in the league. Fix its statistic rows, or reset the season.");
+                    + $"in the league. Fix its statistic rows, or {otherFix}.");
             }
 
             int division = match.CompetitionId!.Value;
@@ -69,7 +87,8 @@ internal static class DomesticCupLeagueReader
                         $"Club {club} plays league matches in two divisions, competitions {Math.Min(division, other)} ")
                     + string.Create(
                         CultureInfo.InvariantCulture,
-                        $"and {Math.Max(division, other)}. Fix the league matches, or reset the season."));
+                        $"and {Math.Max(division, other)}. Fix the league matches, or ")
+                    + $"{otherFix}.");
             }
         }
 
@@ -81,11 +100,16 @@ internal static class DomesticCupLeagueReader
     /// </summary>
     /// <param name="divisionIdsInOrder">The competition ids of the league's divisions, top division first.</param>
     /// <param name="divisionOfClub">The competition id of the division, by league team id.</param>
+    /// <param name="fix">
+    /// The fix, as a sentence, that the refusal of a division with no clubs ends with. It defaults to resetting the
+    /// season.
+    /// </param>
     /// <returns>The number of clubs in each division, in division order.</returns>
     /// <exception cref="SeasonRefusedException">Thrown when a division has no clubs.</exception>
     public static List<int> CountClubsPerDivision(
         IReadOnlyList<int> divisionIdsInOrder,
-        Dictionary<int, int> divisionOfClub)
+        Dictionary<int, int> divisionOfClub,
+        string fix = DefaultMissingDivisionFix)
     {
         List<int> counts = new();
 
@@ -100,7 +124,7 @@ internal static class DomesticCupLeagueReader
                         CultureInfo.InvariantCulture,
                         $"Division {divisionId} has no league matches while the other divisions have them, and ")
                     + "the cups and the playoffs need the whole league. "
-                    + "Reset the season so its league is written again.");
+                    + fix);
             }
 
             counts.Add(count);
@@ -114,11 +138,18 @@ internal static class DomesticCupLeagueReader
     /// </summary>
     /// <param name="clubCounts">The number of clubs in each division, in division order.</param>
     /// <param name="leagueMatches">The league matches.</param>
+    /// <param name="otherFix">
+    /// The fix that the refusal of matches off the calendar offers besides moving them back by hand, after the word
+    /// "or". It defaults to resetting the season.
+    /// </param>
     /// <returns>The calendar.</returns>
     /// <exception cref="SeasonRefusedException">
     /// Thrown when the divisions cannot be laid out, or the league matches are not on the calendar's matchdays.
     /// </exception>
-    public static SeasonCalendar RebuildCalendar(List<int> clubCounts, List<SeasonMatch> leagueMatches)
+    public static SeasonCalendar RebuildCalendar(
+        List<int> clubCounts,
+        List<SeasonMatch> leagueMatches,
+        string otherFix = DefaultOtherFix)
     {
         List<DateTime> kickoffs = leagueMatches.Select(match => match.Kickoff).ToList();
         SeasonCalendar? calendar;
@@ -138,6 +169,6 @@ internal static class DomesticCupLeagueReader
 
         return calendar ?? throw new SeasonRefusedException(
             "The league matches are not on the matchdays of their season's calendar: one was moved or made by hand, "
-            + "so the season's dates cannot be rebuilt. Move it back, or reset the season.");
+            + $"so the season's dates cannot be rebuilt. Move it back, or {otherFix}.");
     }
 }

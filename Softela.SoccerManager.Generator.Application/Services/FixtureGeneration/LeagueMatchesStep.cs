@@ -131,7 +131,8 @@ internal sealed class LeagueMatchesStep : ILeagueStep
                 roster,
                 teams,
                 leagueMatches,
-                runTime);
+                runTime,
+                DateOnly.FromDateTime(runTime));
         }
         catch (SeasonRefusedException refusal)
         {

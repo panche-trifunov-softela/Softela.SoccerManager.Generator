@@ -47,9 +47,14 @@ public static class DomesticCupReader
     /// <param name="cupCompetitionId">The id of the cup's competition.</param>
     /// <param name="divisionIdsInOrder">The competition ids of the league's divisions, top division first.</param>
     /// <param name="seasonMatches">All the matches of the season, in any order.</param>
+    /// <param name="otherFix">
+    /// The fix that a refusal about a league match or the league's dates offers besides fixing it by hand, after the
+    /// word "or". It defaults to resetting the season.
+    /// </param>
     /// <returns>What the season's matches say about the cup.</returns>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="divisionIdsInOrder"/> or <paramref name="seasonMatches"/> is null.
+    /// Thrown when <paramref name="divisionIdsInOrder"/>, <paramref name="seasonMatches"/> or
+    /// <paramref name="otherFix"/> is null.
     /// </exception>
     /// <exception cref="ArgumentException">
     /// Thrown when a division id is listed twice or is the cup's own id. That is a bug in the caller, not a refusal.
@@ -66,10 +71,12 @@ public static class DomesticCupReader
         int seasonId,
         int cupCompetitionId,
         IReadOnlyList<int> divisionIdsInOrder,
-        IReadOnlyList<SeasonMatch> seasonMatches)
+        IReadOnlyList<SeasonMatch> seasonMatches,
+        string otherFix = DomesticCupLeagueReader.DefaultOtherFix)
     {
         ArgumentNullException.ThrowIfNull(divisionIdsInOrder);
         ArgumentNullException.ThrowIfNull(seasonMatches);
+        ArgumentNullException.ThrowIfNull(otherFix);
 
         CheckDivisionIds(cupCompetitionId, divisionIdsInOrder);
 
@@ -89,9 +96,9 @@ public static class DomesticCupReader
                 seasonMatches);
         }
 
-        Dictionary<int, int> divisionOfClub = DomesticCupLeagueReader.MapClubsToDivisions(leagueMatches);
+        Dictionary<int, int> divisionOfClub = DomesticCupLeagueReader.MapClubsToDivisions(leagueMatches, otherFix);
         List<int> clubCounts = DomesticCupLeagueReader.CountClubsPerDivision(divisionIdsInOrder, divisionOfClub);
-        SeasonCalendar calendar = DomesticCupLeagueReader.RebuildCalendar(clubCounts, leagueMatches);
+        SeasonCalendar calendar = DomesticCupLeagueReader.RebuildCalendar(clubCounts, leagueMatches, otherFix);
 
         Dictionary<int, int> rankOfDivision = new();
 

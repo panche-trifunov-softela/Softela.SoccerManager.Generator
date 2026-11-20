@@ -166,7 +166,9 @@ internal sealed class PlayoffStep : ILeagueStep
 
         if (leagueMatches.Count == 0)
         {
-            if (season.Any(match => IsPlayoffMatch(match) && match.CompetitionId is { } id && divisionIds.Contains(id)))
+            if (season.Any(match => PlayoffStages.IsPlayoffMatch(match)
+                && match.CompetitionId is { } id
+                && divisionIds.Contains(id)))
             {
                 throw new SeasonRefusedException(
                     "The season has no league matches, but its divisions have playoff matches. Delete them (the "
@@ -245,7 +247,7 @@ internal sealed class PlayoffStep : ILeagueStep
             .ToList();
 
         List<SeasonMatch> playoffMatches = season
-            .Where(match => match.CompetitionId == division.Id && IsPlayoffMatch(match))
+            .Where(match => match.CompetitionId == division.Id && PlayoffStages.IsPlayoffMatch(match))
             .ToList();
 
         IReadOnlyList<GetStandingsResult> standings =
@@ -370,31 +372,7 @@ internal sealed class PlayoffStep : ILeagueStep
         IReadOnlyList<GetLeagueTeamsResult> leagueTeams =
             await _leagueTeamRepository.GetByLeagueIdAsync(context.League.Id);
 
-        Dictionary<int, int?> stadiumOfTeam = new();
-
-        foreach (GetTeamsResult team in context.Teams)
-        {
-            stadiumOfTeam.TryAdd(team.Id, team.StadiumId);
-        }
-
-        Dictionary<int, int?> stadiumOfClub = new();
-
-        foreach (GetLeagueTeamsResult leagueTeam in leagueTeams)
-        {
-            stadiumOfClub.TryAdd(leagueTeam.Id, stadiumOfTeam.GetValueOrDefault(leagueTeam.TeamId));
-        }
-
-        return stadiumOfClub;
-    }
-
-    /// <summary>
-    /// Tells whether a match is a promotion playoff match: a semi-final or the final.
-    /// </summary>
-    /// <param name="match">The season's match.</param>
-    /// <returns>True when its stage is a playoff stage.</returns>
-    private static bool IsPlayoffMatch(SeasonMatch match)
-    {
-        return match.Stage is PlayoffStages.SemiFinal or PlayoffStages.Final;
+        return ClubStadiums.Of(leagueTeams, context.Teams);
     }
 
     /// <summary>

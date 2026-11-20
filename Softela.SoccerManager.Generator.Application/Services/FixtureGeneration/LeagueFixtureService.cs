@@ -52,9 +52,10 @@ internal sealed class LeagueFixtureService : ILeagueFixtureService
     /// it to a later run, and the next step still runs; any other exception ends the run.
     /// </summary>
     /// <param name="runTime">
-    /// The moment of this run, in UTC. It is the start date of any season written, the creation and modification time
-    /// of its rows, the clock that the one-hour rule on Standings and the 365-day rule on the first match read, and
-    /// the clock that the dates of the cup's ties are measured from.
+    /// The moment of this run, in UTC. The league matches step starts the season it writes from its date, and the
+    /// season rollover starts the next season from its own start date. It is also the creation and modification time
+    /// of the rows written, the clock that the one-hour rule on Standings and the 365-day rule on the first match
+    /// read, and the clock that the dates of the cup's ties are measured from.
     /// </param>
     /// <param name="cancellationToken">The cancellation token; it stops the run before the next league.</param>
     /// <returns>A task that completes once every league has been handled.</returns>
@@ -128,7 +129,17 @@ internal sealed class LeagueFixtureService : ILeagueFixtureService
 
         HashSet<int> seasonIds = seasons.Select(candidate => candidate.Id).ToHashSet();
         List<GetMatchesResult> leagueMatches = matches.Where(match => seasonIds.Contains(match.SeasonId)).ToList();
-        LeagueStepContext context = new(league, season, divisions, competitions, teams, leagueMatches, runTime);
+        List<GetSeasonsResult> seasonsAscending = seasons.OrderBy(candidate => candidate.SeasonNumber).ToList();
+
+        LeagueStepContext context = new(
+            league,
+            season,
+            seasonsAscending,
+            divisions,
+            competitions,
+            teams,
+            leagueMatches,
+            runTime);
 
         foreach (ILeagueStep step in _steps)
         {
