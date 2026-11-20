@@ -40,6 +40,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
     private readonly IMatchRepository _matchRepository;
     private readonly ILeagueTeamRepository _leagueTeamRepository;
     private readonly IStandingRepository _standingRepository;
+    private readonly PreviousSeasonReader _previousSeasonReader;
     private readonly ILogger<ContinentalCupStep> _logger;
 
     /// <summary>
@@ -50,6 +51,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
     /// <param name="matchRepository">The repository that reads the season's scores.</param>
     /// <param name="leagueTeamRepository">The repository that reads leagues' rosters and clubs' squads.</param>
     /// <param name="standingRepository">The repository that reads and creates standings rows.</param>
+    /// <param name="previousSeasonReader">The reader of the previous season's tables and domestic cup winner.</param>
     /// <param name="logger">The logger.</param>
     public ContinentalCupStep(
         LeagueFixtureWriter leagueFixtureWriter,
@@ -57,6 +59,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
         IMatchRepository matchRepository,
         ILeagueTeamRepository leagueTeamRepository,
         IStandingRepository standingRepository,
+        PreviousSeasonReader previousSeasonReader,
         ILogger<ContinentalCupStep> logger)
     {
         _leagueFixtureWriter = leagueFixtureWriter;
@@ -64,6 +67,7 @@ internal sealed class ContinentalCupStep : ILeagueStep
         _matchRepository = matchRepository;
         _leagueTeamRepository = leagueTeamRepository;
         _standingRepository = standingRepository;
+        _previousSeasonReader = previousSeasonReader;
         _logger = logger;
     }
 
@@ -218,11 +222,6 @@ internal sealed class ContinentalCupStep : ILeagueStep
             return null;
         }
 
-        if (context.Season.SeasonNumber > 1)
-        {
-            LogEntrantsFromStrength(context);
-        }
-
         CupFormat format = ReadFormat(dates);
 
         if (!ContinentalLeaguePhaseDatePlanner.CanStart(dates.LeaguePhase, format.FirstKnockout, context.RunTime))
@@ -232,8 +231,10 @@ internal sealed class ContinentalCupStep : ILeagueStep
             return null;
         }
 
+        PreviousSeasonReading previous = await _previousSeasonReader.ReadAsync(context);
+
         (ContinentalEntrantSelection selection, List<int> thinClubs) =
-            await SelectEntrantsAsync(context, divisionOfClub, format.CupSize);
+            await SelectEntrantsAsync(context, divisionOfClub, format.CupSize, previous);
 
         List<CupPlan>? plans = PlanCups(context, cups, selection, format, season);
 
@@ -304,11 +305,14 @@ internal sealed class ContinentalCupStep : ILeagueStep
 
     /// <summary>
     /// Chooses the entrants of both cups: it reads the roster and every squad of the league once, measures the clubs
-    /// of the divisions and the guests, and hands them to the selector.
+    /// of the divisions and the guests, and hands them to the selector. The league clubs come in the order of the
+    /// previous season's tables when they can be used, and in the order of squad strength otherwise. It logs where that
+    /// order comes from: the previous season's tables, or squad strength and why.
     /// </summary>
     /// <param name="context">The league, its newest season and what the tick read at its start.</param>
     /// <param name="divisionOfClub">The competition id of the division, by league team id.</param>
     /// <param name="cupSize">The number of clubs in each cup.</param>
+    /// <param name="previous">What the league's previous season gives the cups.</param>
     /// <returns>
     /// A task whose result holds the entrants of both cups, in pot order, and the league team ids of the entrants with
     /// fewer rated players than a full squad, in ascending order.
@@ -320,10 +324,13 @@ internal sealed class ContinentalCupStep : ILeagueStep
     private async Task<(ContinentalEntrantSelection Selection, List<int> ThinClubs)> SelectEntrantsAsync(
         LeagueStepContext context,
         Dictionary<int, int> divisionOfClub,
-        int cupSize)
+        int cupSize,
+        PreviousSeasonReading previous)
     {
         IReadOnlyList<GetLeagueTeamsResult> roster = await _leagueTeamRepository.GetByLeagueIdAsync(context.League.Id);
         Dictionary<int, GetLeagueTeamsResult> rosterOf = roster.ToDictionary(entry => entry.Id);
+
+        LogPreviousSeason(context, previous, rosterOf);
 
         CheckDivisionClubs(divisionOfClub.Keys.Order(), rosterOf);
 
@@ -368,8 +375,14 @@ internal sealed class ContinentalCupStep : ILeagueStep
             guestStrengths.Add(MeasureClub(guest.Id, guest.TeamId, ratingsOf[guest.Id], ratedPlayersOf));
         }
 
+        IReadOnlyList<int> seasonOne = ContinentalEntrantSelector.SeasonOnePyramid(divisions);
+
+        IReadOnlyList<int> pyramid = previous.Status == PreviousSeasonStatus.Usable
+            ? ContinentalPyramid.FromPreviousSeason(previous.TableOrder, seasonOne, previous.CupWinnerLeagueTeamId)
+            : seasonOne;
+
         ContinentalEntrantSelection selection = ContinentalEntrantSelector.Select(
-            ContinentalEntrantSelector.SeasonOnePyramid(divisions),
+            pyramid,
             ContinentalEntrantSelector.RankGuests(guestStrengths),
             cupSize);
 
@@ -750,18 +763,102 @@ internal sealed class ContinentalCupStep : ILeagueStep
     }
 
     /// <summary>
-    /// Logs that the entrants of a later season are still chosen by squad strength.
+    /// Logs where the entrants of a later season come from: the previous season's tables and cup winner, the tables
+    /// alone when the cup winner cannot be read, or squad strength and why. Season 1 logs nothing.
     /// </summary>
     /// <param name="context">The league, its newest season and what the tick read at its start.</param>
-    private void LogEntrantsFromStrength(LeagueStepContext context)
+    /// <param name="previous">What the league's previous season gives the cups.</param>
+    /// <param name="rosterOf">The roster entry of each league team id.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a usable reading has no season, or the status is not one that the step knows, which is a bug.
+    /// </exception>
+    private void LogPreviousSeason(
+        LeagueStepContext context,
+        PreviousSeasonReading previous,
+        Dictionary<int, GetLeagueTeamsResult> rosterOf)
     {
-        _logger.LogInformation(
-            LogPrefix + ": the entrants of the continental cups come from squad strength, because the previous "
-            + "season's tables are not used yet.",
-            context.League.Name,
-            context.League.Id,
-            context.Season.SeasonNumber,
-            context.Season.Id);
+        switch (previous.Status)
+        {
+            case PreviousSeasonStatus.None:
+                if (context.Season.SeasonNumber > 1)
+                {
+                    _logger.LogInformation(
+                        LogPrefix + ": no earlier season, so the continental entrants come from squad strength.",
+                        context.League.Name,
+                        context.League.Id,
+                        context.Season.SeasonNumber,
+                        context.Season.Id);
+                }
+
+                break;
+
+            case PreviousSeasonStatus.NotUsable when previous.Season is { } unusable:
+                _logger.LogWarning(
+                    LogPrefix + ": season {PreviousNumber}'s tables cannot be used ({Reason}), so the continental "
+                    + "entrants come from squad strength.",
+                    context.League.Name,
+                    context.League.Id,
+                    context.Season.SeasonNumber,
+                    context.Season.Id,
+                    unusable.SeasonNumber,
+                    previous.Reason);
+
+                break;
+
+            case PreviousSeasonStatus.Usable when previous.Season is { } usable && previous.Reason is { } cupProblem:
+                _logger.LogWarning(
+                    LogPrefix + ": the continental entrants come from season {PreviousNumber}'s tables, but its "
+                    + "domestic cup winner cannot be read ({Reason}), so no club is moved up as the cup winner.",
+                    context.League.Name,
+                    context.League.Id,
+                    context.Season.SeasonNumber,
+                    context.Season.Id,
+                    usable.SeasonNumber,
+                    cupProblem);
+
+                break;
+
+            case PreviousSeasonStatus.Usable when previous.Season is { } usable:
+                _logger.LogInformation(
+                    LogPrefix + ": the continental entrants come from season {PreviousNumber}'s tables and its "
+                    + "domestic cup winner {Winner}.",
+                    context.League.Name,
+                    context.League.Id,
+                    context.Season.SeasonNumber,
+                    context.Season.Id,
+                    usable.SeasonNumber,
+                    DescribeCupWinner(context, previous.CupWinnerLeagueTeamId, rosterOf));
+
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"The continental cup step cannot log the previous season's status {previous.Status}, "
+                    + "which is a bug.");
+        }
+    }
+
+    /// <summary>
+    /// Names the previous season's domestic cup winner for a log line.
+    /// </summary>
+    /// <param name="context">The league, its newest season and what the tick read at its start.</param>
+    /// <param name="winner">The league team id of the winner, or null when there is none.</param>
+    /// <param name="rosterOf">The roster entry of each league team id.</param>
+    /// <returns>
+    /// The winner as "'name' (id)", "unknown team" in place of the name when the club or its team is missing, or
+    /// "none" when there is no winner.
+    /// </returns>
+    private static string DescribeCupWinner(
+        LeagueStepContext context,
+        int? winner,
+        Dictionary<int, GetLeagueTeamsResult> rosterOf)
+    {
+        if (winner is not { } clubId)
+        {
+            return "none";
+        }
+
+        return ClubNames.Describe(clubId, ClubNames.Of(rosterOf.Values, context.Teams));
     }
 
     /// <summary>

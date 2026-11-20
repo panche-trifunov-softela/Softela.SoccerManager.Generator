@@ -13,7 +13,7 @@ public static class BuilderExtensions
     /// share that run's unit of work and repositories. The steps of a league's season run in the order they are
     /// registered here: the league matches, the domestic cup, the continental cups' league phase, then their
     /// knockouts, then the World Cup qualifiers, the World Cup finals groups and the World Cup knockouts, and then the
-    /// promotion playoffs.
+    /// promotion playoffs, and last the season rollover.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
     /// <returns>The same service collection, for chaining.</returns>
@@ -23,6 +23,7 @@ public static class BuilderExtensions
             .AddScoped<ILeagueFixtureService, LeagueFixtureService>()
             .AddScoped<LeagueFixtureWriter>()
             .AddScoped<MatchInserter>()
+            .AddScoped<PreviousSeasonReader>()
             .AddScoped<ILeagueStep, LeagueMatchesStep>()
             .AddScoped<ILeagueStep, DomesticCupStep>()
             .AddScoped<ILeagueStep, ContinentalCupStep>()
@@ -30,7 +31,8 @@ public static class BuilderExtensions
             .AddScoped<ILeagueStep, WorldCupQualifierStep>()
             .AddScoped<ILeagueStep, WorldCupGroupStep>()
             .AddScoped<ILeagueStep, WorldCupKnockoutStep>()
-            .AddScoped<ILeagueStep, PlayoffStep>();
+            .AddScoped<ILeagueStep, PlayoffStep>()
+            .AddScoped<ILeagueStep, SeasonRolloverStep>();
 
         return services;
     }

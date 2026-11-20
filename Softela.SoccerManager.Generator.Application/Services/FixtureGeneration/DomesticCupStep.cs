@@ -16,12 +16,6 @@ namespace Softela.SoccerManager.Generator.Application.Services.FixtureGeneration
 internal sealed class DomesticCupStep : ILeagueStep
 {
     /// <summary>
-    /// The competition format of a domestic cup: a knockout only, as the backend's
-    /// <c>CompetitionFormat.KnockoutOnly</c>.
-    /// </summary>
-    private const byte KnockoutOnlyFormat = 1;
-
-    /// <summary>
     /// The format of a date in a log line.
     /// </summary>
     private const string DateFormat = "yyyy-MM-dd HH:mm";
@@ -71,10 +65,7 @@ internal sealed class DomesticCupStep : ILeagueStep
         GetLeaguesResult league = context.League;
         GetSeasonsResult season = context.Season;
 
-        List<GetCompetitionsResult> cups = context.Competitions
-            .Where(IsDomesticCup)
-            .OrderBy(competition => competition.Id)
-            .ToList();
+        IReadOnlyList<GetCompetitionsResult> cups = DomesticCupFinder.Find(context.Competitions);
 
         if (cups.Count == 0)
         {
@@ -132,21 +123,6 @@ internal sealed class DomesticCupStep : ILeagueStep
 
         LogThinClubs(context, thinClubs, measuredCount);
         LogOutcome(context, cup, outcome, reading, plan, refusal);
-    }
-
-    /// <summary>
-    /// Tells whether a competition has the shape of a domestic cup: it is not a division, it is domestic, it is a
-    /// knockout, it is not national and it has no age limit, which sets it apart from a youth cup.
-    /// </summary>
-    /// <param name="competition">The competition.</param>
-    /// <returns>True when the competition is shaped like a domestic cup.</returns>
-    private static bool IsDomesticCup(GetCompetitionsResult competition)
-    {
-        return competition.Order == 0
-            && competition.IsDomestic
-            && !competition.IsNational
-            && competition.Format == KnockoutOnlyFormat
-            && competition.MaxAgeAllowed is null;
     }
 
     /// <summary>

@@ -20,9 +20,10 @@ internal static class LeagueInputBuilder
     internal const string KickoffFormat = "dddd yyyy-MM-dd HH:mm";
 
     /// <summary>
-    /// The competition format of a division: a single table of clubs, as the backend's group-only format.
+    /// The competition format of a division: a single table of clubs, as the backend's group-only format. The season
+    /// rollover's reader of former divisions compares with it too.
     /// </summary>
-    private const byte GroupOnlyFormat = 2;
+    internal const byte GroupOnlyFormat = 2;
 
     /// <summary>
     /// The number of legs of a league: every club meets every other club at home and away.
@@ -91,7 +92,10 @@ internal static class LeagueInputBuilder
     /// <paramref name="leagueMatches"/> are the matches of all of the league's seasons, friendlies included;
     /// </description>
     /// </item>
-    /// <item><description><paramref name="runTime"/> is in UTC.</description></item>
+    /// <item><description><paramref name="runTime"/> is in UTC;</description></item>
+    /// <item>
+    /// <description><paramref name="startDate"/> is the run's date, or a later one the caller has chosen.</description>
+    /// </item>
     /// </list>
     /// </summary>
     /// <param name="league">The league.</param>
@@ -101,7 +105,10 @@ internal static class LeagueInputBuilder
     /// <param name="roster">The league's roster.</param>
     /// <param name="teams">Every team.</param>
     /// <param name="leagueMatches">The matches of all of the league's seasons.</param>
-    /// <param name="runTime">The moment of the run, in UTC.</param>
+    /// <param name="runTime">The moment of the run, in UTC, which the 365-day limit is counted from.</param>
+    /// <param name="startDate">
+    /// The date the season is built from: its first match is on a Thursday after it.
+    /// </param>
     /// <returns>Everything needed to write the season's league matches.</returns>
     /// <exception cref="SeasonRefusedException">
     /// Thrown when:
@@ -131,7 +138,8 @@ internal static class LeagueInputBuilder
         IReadOnlyList<GetLeagueTeamsResult> roster,
         IReadOnlyList<GetTeamsResult> teams,
         IReadOnlyList<GetMatchesResult> leagueMatches,
-        DateTime runTime)
+        DateTime runTime,
+        DateOnly startDate)
     {
         CheckDivisionKinds(divisions);
         CheckDivisionsHaveStandings(divisions, standingsByDivision);
@@ -163,9 +171,10 @@ internal static class LeagueInputBuilder
         }
 
         List<DateTime> kickoffs = leagueMatches.Select(match => match.StartDateTime).ToList();
-        SeasonCalendar calendar = SeasonCalendarBuilder.Build(DateOnly.FromDateTime(runTime), clubCounts, kickoffs);
+        SeasonCalendar calendar = SeasonCalendarBuilder.Build(startDate, clubCounts, kickoffs);
 
-        // Without existing matches the first match is at most 7 days away, so only a latest match can push it out.
+        // Without existing matches the first match is at most 7 days after the start date, so only a latest match can
+        // push it out.
         if (latest is not null && calendar.LeagueMatchdays[0] > limit)
         {
             throw TooFarAhead(runTime, latest);

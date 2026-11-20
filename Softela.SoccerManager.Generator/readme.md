@@ -25,14 +25,21 @@ backend than the qualifier step does: the finals group step reads the same three
 on the tick that draws the groups, and the knockout step reads none of them. Both write their matches through
 `dbo.InsertStagedMatch`, with stages 11 to 16 and the group number of the group stage.
 
+The season rollover step writes the next season through `dbo.InsertSeason`, which the Generator has not called before:
+its SQL user must be allowed to run it. Without that permission the rollover fails inside its transaction, so nothing
+is half-written, and like any database error it then stops that run for the leagues after it until the permission is
+given. It also writes the new season's standings rows through `dbo.InsertStanding` and its league matches through
+`dbo.InsertMatch`, as the league matches step does.
+
 ## GenerateLeagueFixtures
 
 A timer function with the schedule `0 0 */6 * * *`: every six hours, at 00:00, 06:00, 12:00 and 18:00 host time.
 
 For each league, in id order, it takes the newest season (the highest SeasonNumber) and its divisions (the competitions
-with an Order above 0), and runs eight steps for it, one after the other: the league matches step, then the domestic
+with an Order above 0), and runs nine steps for it, one after the other: the league matches step, then the domestic
 cup step, then the continental cup step, then the continental knockout step, then the World Cup qualifier step, then
-the World Cup finals group step, then the World Cup knockout step, and then the promotion playoff step.
+the World Cup finals group step, then the World Cup knockout step, then the promotion playoff step, and last the
+season rollover step.
 
 The league matches step writes every league match of the season (two legs, on Thursdays and Sundays at 20:00 UTC,
 from the first Thursday after the day of the run that is at least 24 hours after the league's latest match) plus
@@ -105,9 +112,19 @@ hours from every other match of both clubs this season, and after the matchday b
 before the first knockout match.
 
 The entrants come from squad strength, measured as the domestic cup measures it (the best 16 ratings, a missing place
-counts 0), until the previous season's tables are used; from Season 2 the step says so in the log:
+counts 0), in Season 1 and whenever the previous season's tables cannot be used; from Season 2 the step says in the log
+which it used, and when the tables cannot be used it logs a warning that says why. From Season 2 the pyramid is the
+previous season's final tables, Division 1's table first and then Division 2's, and a club that moved counts where it
+finished, in the division it left. A club of this season's divisions that the tables do not have comes after the others,
+in the order the pyramid has without tables: Division 1 first, the strongest squad first inside a division. Cup 2 takes
+the previous season's domestic cup winner first, unless it is in cup 1. When the tables can be used but the previous
+season's domestic cup cannot be read, the step logs a warning that says why, and no club is moved up as the cup winner.
+A fix that the warning's reason names, such as the cup-only reset, is for a season in play and does not apply to the
+previous season. The tables are the season's own results, ranked as the promotion playoffs rank them, so they are the
+order the rollover moved the clubs by. In every case:
 
-- the pyramid is Division 1 first, the strongest squad first inside a division;
+- the pyramid is Division 1 first, and inside a division the strongest squad first, or the final table's order when the
+  tables are used;
 - cup 1 takes the first 8 clubs of the pyramid and cup 2 the next 8;
 - the guests, strongest first, fill the places the league clubs leave empty, cup 1 first;
 - every guest is eligible: a guest with a thin or no squad ranks low, and the step logs one warning, when the cups are
@@ -543,10 +560,11 @@ To write the finals again, or only the knockouts from a round, see "Writing a se
 
 ## Promotion playoffs
 
-The promotion playoff step runs last. It acts on a division whose `TeamsInPlayoffs` is above 0 and that has a match of
-the season; a League with no such division is left alone, and the step then does nothing and logs nothing. From then on
-it reads the season again inside its own lock at every tick, so it sees every result entered up to that moment. Each
-division with a playoff is handled on its own, the top division first.
+The promotion playoff step runs after the World Cup steps and before the season rollover step. It acts on a division
+whose `TeamsInPlayoffs` is above 0 and that has a match of the season; a League with no such division is left alone, and
+the step then does nothing and logs nothing. From then on it reads the season again inside its own lock at every tick,
+so it sees every result entered up to that moment. Each division with a playoff is handled on its own, the top division
+first.
 
 The places of a division's table come from its settings, with P = `TeamsPromoted`, Q = `TeamsInPlayoffs` and
 R = `TeamsRelegated`:
@@ -680,6 +698,118 @@ DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.Competitio
 
 The deletes cascade to each match's statistics rows, as the resets in "Writing a season again" do.
 
+## Season rollover
+
+The season rollover step runs last. When the league's newest season has ended it moves the clubs between the divisions
+and writes the next season, in one transaction.
+
+A season ends when every match that decides it is finished:
+
+- every league match of every division, and every playoff match of a division with a playoff;
+- the domestic cup's final, when the season has cup matches; a season with no cup match at all is played without a cup;
+- from 12 clubs per division, which is when a league has a World Cup: the World Cup final, when the season plays a
+  World Cup, which is when the league's national competition has a match in it; a season that does not play one ends
+  with the continental finals instead, the final of each continental cup that has a match in the season;
+- friendlies never decide it, and the continental matches do not while a World Cup is played.
+
+The step does nothing until the last league or playoff match of the divisions has kicked off, and then it logs
+"the season runs until ... UTC, so it does not roll over yet" for as long as one has not. From then on it reads the
+season again inside its own lock at every tick, so it sees every result entered up to that moment. It acts on the
+newest season only: when the league already has a newer season, it logs that and writes nothing.
+
+While the season is not over, the step logs one information line a tick, "the season is not over: it waits for ...",
+and writes nothing. It waits for the first of these that is true, in this order:
+
+- the season's league matches, which are not written yet;
+- the league matches to be finished: n of m are;
+- a division with a playoff: its league matches, its Standings to settle for an hour, or its playoff matches to be
+  decided, the top division first;
+- the domestic cup's final;
+- the World Cup final, or the continental finals, as above.
+
+It refuses the season, which is logged as an error with what to do and tried again at every tick, when:
+
+- the divisions' promotion, relegation or playoff settings contradict each other or their clubs (see "Promotion
+  playoffs"), or a division's `TeamsInPlayoffs` is above 0 and the season's playoff matches are not as that section
+  describes;
+- no division has Standings rows, or some divisions have them and another has none, or a Standings row is for a club
+  that is a guest on the roster: add or delete the rows, give a tier that is gone Order 0, or make the next season by
+  hand;
+- a division's Standings disagree with its league matches: a division with a playoff needs its wins, draws, losses and
+  goals to agree with the results, as the playoffs do, and every division needs a Standings row for each club of its
+  matches, and each pair of clubs to have met once at home and once away; the divisions without a playoff are ranked
+  from their matches, and their Standings numbers are not read;
+- a league match lacks a club, because one of its two statistics rows is missing, a club is in two divisions, or a
+  division has no league matches while the others have them: give a tier that is gone Order 0, or make the next season
+  by hand;
+- the league has two competitions with the domestic cup's shape, or two national competitions, so the final that ends
+  the season cannot be told apart: keep one of them;
+- a World Cup, continental or domestic cup final is finished and level with no shootout, a World Cup or continental
+  final lacks a statistics row for one side, or the season has two finals of one cup: fix its result or its rows, or
+  delete the extra one;
+- the moved clubs cannot be laid out as a season, for example because too many clubs of one division share a stadium, or
+  because an existing match is more than 365 days ahead.
+
+Do not reset a season that has ended to clear a refusal: that would delete its results. The rollover's refusals say what
+to fix by hand, or to make the next season by hand. The other steps can refuse the same problem in the same tick and say
+to reset the season, which does not apply to a season that has ended. A refusal of the domestic cup can name the
+cup-only reset, and a refusal of a promotion playoff can name deleting the division's playoff matches; each deletes
+only those matches, not the season's results. A refusal ends only this league's rollover for the tick, and the other
+leagues carry on.
+
+The clubs move by the settings of the divisions, with P = `TeamsPromoted`, Q = `TeamsInPlayoffs` and
+R = `TeamsRelegated` as in "Promotion playoffs", from the tables as they ended: the first P - 1 places of a division go
+up, or the first P when Q is 0; with a playoff, its winner takes the last promotion place; the bottom R places go down.
+Each division has the same number of clubs in the next season. A league of one division, or whose settings are all 0,
+moves nobody.
+
+It then writes, in one transaction:
+
+- season N + 1 of the league, with the run's moment as its creation time;
+- one Standings row at zero for each club of each division, on the division it plays in now;
+- the season's league matches, with two MatchTeamStatistics rows each, laid out as the league matches step lays out a
+  season.
+
+It writes nothing else: the cups, the continental cups and the World Cup qualifiers of the new season are written by
+their own steps on the next tick, and the roster, the squads, the contracts, the loans, the buybacks and the money do
+not change. A competition that had league matches in the old season but has Order 0 now gets no Standings, and the step
+logs it.
+
+The first league Thursday is the first Thursday at least 7 days after the kickoff date of the last match that decided
+the old season, or the first Thursday after the day of the run when that is later, and at least 24 hours after every
+match that already exists, friendlies included.
+
+Its log lines each start with the league and the season, and are:
+
+- information, "the season had no league matches at the start of this run, so it cannot end yet";
+- information, "the season runs until ... UTC, so it does not roll over yet";
+- information, "the season is not over: it waits for ...";
+- information, "season n (id n) exists already, so this season does not roll over";
+- information, "the season does not exist any more, so it does not roll over";
+- information, "season n was made while this run rolled the season over, so nothing is written";
+- information, "rolled the season over: wrote season n (id n) with n clubs in n divisions and n league matches, ... to
+  ... UTC; promoted ...; relegated ...", with each moved club as the team's name and its league team id, and then one
+  line for each competition that has Order 0 now;
+- error, "the season rollover is refused: ... The next tick tries again";
+- information, "another run holds this season's lock, so this run leaves the season rollover to it".
+
+A season that somebody makes by hand closes the old one: the step sees a newer season and does not roll the old one
+over. A refused write that is tried at every tick can use up a season id each time; the ids then skip, which does no
+harm.
+
+A season whose World Cup qualifiers had fewer than 32 nations cannot play its finals (the finals group step logs a
+warning at every tick), so it never ends: make the next season by hand instead.
+
+To roll the season over again, delete the new season. Its Standings and matches are deleted with it, and the delete is
+refused once a bid or a deal uses the season:
+
+```sql
+DELETE FROM dbo.Seasons WHERE Id = <new season id>;
+```
+
+The same delete is `DELETE api/seasons/{id}` on the backend. The next tick then rolls the old season over again, with
+new fixtures. To stop that, make the next season by hand.
+
 ## Running it locally
 
 The host needs Azurite for `AzureWebJobsStorage` (`UseDevelopmentStorage=true`) and these settings:
@@ -718,6 +848,10 @@ are deleted with them. A national competition has no Standings, so nothing else 
 ```sql
 DELETE m FROM dbo.Matches m INNER JOIN dbo.Competitions c ON c.Id = m.CompetitionId WHERE m.SeasonId = <season id> AND (c.[Order] > 0 OR c.Id = <domestic cup id> OR c.IsNational = 1);
 ```
+
+On a later season, writing the season again rewrites its league from the day of the run, with no gap of 7 days after
+the season before: only the season rollover keeps that gap. A competition or a roster club that has matches or
+Standings cannot be deleted, so delete those first.
 
 To keep the league matches and draw the cup again, delete only the cup's matches. The next tick draws the cup again,
 from today's squads:

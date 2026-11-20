@@ -1,7 +1,5 @@
 using System.Globalization;
 using Softela.SoccerManager.Generator.Application.Core.Exceptions;
-using Softela.SoccerManager.Generator.Application.Services.DomesticCup;
-using Softela.SoccerManager.Generator.Application.Services.Ranking;
 using Softela.SoccerManager.Generator.Application.Services.Seasons;
 
 namespace Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
@@ -276,22 +274,12 @@ public static class ContinentalKnockoutReader
             .Order()
             .ToList();
 
-        List<TableMatch> matches = SeasonTableMatches.Of(leaguePhase);
-
-        try
-        {
-            return TableRanking.Rank(seasonId, clubs, matches)
-                .OrderBy(row => row.Place)
-                .Select(row => row.Id)
-                .ToList();
-        }
-        catch (ArgumentException exception) when (exception is not ArgumentNullException
-            and not ArgumentOutOfRangeException)
-        {
-            throw new SeasonRefusedException(
-                $"The league-phase table refused the cup's matches: {DomesticCupReader.ReasonOf(exception)} "
-                + ResetBothCups);
-        }
+        return SeasonTableRanker.RankIds(
+            seasonId,
+            clubs,
+            leaguePhase,
+            "The league-phase table refused the cup's matches",
+            ResetBothCups);
     }
 
     /// <summary>

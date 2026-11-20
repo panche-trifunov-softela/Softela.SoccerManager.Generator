@@ -5,21 +5,23 @@ namespace Softela.SoccerManager.Generator.Application.Services.ContinentalCup;
 
 /// <summary>
 /// Chooses the entrants of the two continental cups. Cup 1 takes the first 8 clubs of the league's pyramid and cup 2
-/// the next 8; there is no domestic cup winner yet. The guests fill the places the league clubs leave empty, the
+/// the next 8; the order of the pyramid decides who they are, and from Season 2 the continental cup step puts the
+/// previous season's domestic cup winner first in cup 2. The guests fill the places the league clubs leave empty, the
 /// strongest first and cup 1 first. Each cup's list is in pot order: the draw cuts it into quarters, so the first
 /// quarter is pot 1.
 /// </summary>
 internal static class ContinentalEntrantSelector
 {
     /// <summary>
-    /// The number of league clubs each cup takes from the pyramid.
+    /// The number of league clubs each cup takes from the pyramid. <see cref="ContinentalPyramid"/> reads it to find
+    /// the first place of cup 2.
     /// </summary>
-    private const int LeagueClubsPerCup = 8;
+    internal const int LeagueClubsPerCup = 8;
 
     /// <summary>
     /// Puts the clubs of the divisions in pyramid order: Division 1 first, and inside each division the strongest squad
-    /// first. This is the Season 1 rule, and it is used for every season until a later step passes the previous
-    /// season's tables; <see cref="Select"/> takes any order.
+    /// first. This is the Season 1 rule, which the continental cup step uses for Season 1 and whenever the previous
+    /// season's tables cannot be used; <see cref="Select"/> takes any order.
     /// </summary>
     /// <param name="divisionsInOrder">The squad strengths of each division's clubs, Division 1 first.</param>
     /// <returns>The league team ids of every club of every division, in pyramid order.</returns>

@@ -19,6 +19,16 @@ public static class PlayoffStages
     public const byte Final = (byte)MatchStage.PromotionPlayoffFinal;
 
     /// <summary>
+    /// Tells whether a match is a promotion playoff match: a semi-final or the final.
+    /// </summary>
+    /// <param name="match">The season's match.</param>
+    /// <returns>True when its stage is a playoff stage.</returns>
+    public static bool IsPlayoffMatch(SeasonMatch match)
+    {
+        return match.Stage is SemiFinal or Final;
+    }
+
+    /// <summary>
     /// Gets the name of a playoff stage as a refusal message writes it, in lower case.
     /// </summary>
     /// <param name="stage">The stage code of a playoff match.</param>
